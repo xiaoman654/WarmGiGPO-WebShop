@@ -150,6 +150,29 @@ def save_training_metadata(
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
 
+def save_sample_preview(
+    output_dir: Path,
+    rows: list[dict[str, Any]],
+    limit: int = 5,
+) -> None:
+    previews = []
+    for row in rows[:limit]:
+        previews.append(
+            {
+                "sample_id": row.get("sample_id"),
+                "trajectory_id": row.get("trajectory_id"),
+                "step_id": row.get("step_id"),
+                "instruction": row.get("instruction"),
+                "history": row.get("history"),
+                "observation_prefix": str(row.get("observation", ""))[:1000],
+                "target_action": row.get("target_action"),
+                "action_type": row.get("action_type"),
+            }
+        )
+    with (output_dir / "sft_sample_preview.json").open("w", encoding="utf-8") as f:
+        json.dump(previews, f, indent=2, ensure_ascii=False)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name-or-path", required=True)
@@ -234,6 +257,7 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     save_training_metadata(output_dir, args, train_rows, valid_rows)
+    save_sample_preview(output_dir, train_rows)
 
     steps_per_epoch = math.ceil(
         len(train_dataset) / (args.per_device_train_batch_size * args.gradient_accumulation_steps)
@@ -283,12 +307,21 @@ def main() -> None:
         tokenizer=tokenizer,
     )
 
-    trainer.train()
+    train_result = trainer.train()
+    eval_metrics = trainer.evaluate()
     trainer.save_model(str(output_dir / "final_adapter"))
     tokenizer.save_pretrained(str(output_dir / "final_adapter"))
+
+    summary = {
+        "train_metrics": train_result.metrics,
+        "eval_metrics": eval_metrics,
+        "final_adapter": str(output_dir / "final_adapter"),
+    }
+    with (output_dir / "sft_train_summary.json").open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
+
     print(f"saved final adapter to: {output_dir / 'final_adapter'}")
 
 
 if __name__ == "__main__":
     main()
-
