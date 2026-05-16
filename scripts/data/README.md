@@ -33,6 +33,14 @@ data/processed/sft_step_level/valid.jsonl
 data/processed/sft_step_level/stats.json
 ```
 
+Validate the generated dataset before training:
+
+```bash
+python scripts/data/validate_webshop_sft_dataset.py \
+  --train data/processed/sft_step_level/train.jsonl \
+  --valid data/processed/sft_step_level/valid.jsonl
+```
+
 Each JSONL row contains both explicit fields and chat-style `messages`:
 
 ```text
@@ -40,4 +48,3 @@ instruction + history + observation -> target_action
 ```
 
 `data/raw/` and `data/processed/` are intentionally ignored by Git.
-
