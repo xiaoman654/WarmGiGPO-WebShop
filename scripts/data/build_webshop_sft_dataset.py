@@ -23,6 +23,7 @@ import json
 import random
 import re
 from collections import Counter
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -123,6 +124,45 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def split_samples(
+    samples: list[dict[str, Any]],
+    valid_ratio: float,
+    seed: int,
+    split_by: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    rng = random.Random(seed)
+
+    if split_by == "sample":
+        shuffled = list(samples)
+        rng.shuffle(shuffled)
+        n_valid = max(1, int(len(shuffled) * valid_ratio)) if shuffled else 0
+        return shuffled[n_valid:], shuffled[:n_valid]
+
+    if split_by != "trajectory":
+        raise ValueError(f"Unsupported split_by: {split_by}")
+
+    by_traj: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for sample in samples:
+        by_traj[int(sample["trajectory_id"])].append(sample)
+
+    traj_ids = list(by_traj)
+    rng.shuffle(traj_ids)
+    n_valid_traj = max(1, int(len(traj_ids) * valid_ratio)) if traj_ids else 0
+    valid_traj_ids = set(traj_ids[:n_valid_traj])
+
+    train = []
+    valid = []
+    for sample in samples:
+        if int(sample["trajectory_id"]) in valid_traj_ids:
+            valid.append(sample)
+        else:
+            train.append(sample)
+
+    rng.shuffle(train)
+    rng.shuffle(valid)
+    return train, valid
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -133,6 +173,12 @@ def main() -> None:
     parser.add_argument("--valid-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-samples", type=int, default=None, help="Optional debug cap.")
+    parser.add_argument(
+        "--split-by",
+        choices=["trajectory", "sample"],
+        default="trajectory",
+        help="Use trajectory split for final SFT to avoid leaking steps from the same trajectory.",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -148,12 +194,7 @@ def main() -> None:
         if args.max_samples and len(samples) >= args.max_samples:
             break
 
-    rng = random.Random(args.seed)
-    rng.shuffle(samples)
-
-    n_valid = max(1, int(len(samples) * args.valid_ratio)) if samples else 0
-    valid = samples[:n_valid]
-    train = samples[n_valid:]
+    train, valid = split_samples(samples, args.valid_ratio, args.seed, args.split_by)
 
     write_jsonl(out_dir / "train.jsonl", train)
     write_jsonl(out_dir / "valid.jsonl", valid)
@@ -164,8 +205,14 @@ def main() -> None:
         "num_train": len(train),
         "num_valid": len(valid),
         "valid_ratio": args.valid_ratio,
+        "split_by": args.split_by,
         "seed": args.seed,
         "trajectory_count": len({s["trajectory_id"] for s in samples}),
+        "train_trajectory_count": len({s["trajectory_id"] for s in train}),
+        "valid_trajectory_count": len({s["trajectory_id"] for s in valid}),
+        "trajectory_overlap_count": len(
+            {s["trajectory_id"] for s in train} & {s["trajectory_id"] for s in valid}
+        ),
         "action_type_counts": dict(Counter(s["action_type"] for s in samples).most_common()),
         "avg_history_len": sum(len(s["history"]) for s in samples) / max(1, len(samples)),
         "avg_observation_chars": sum(len(s["observation"]) for s in samples) / max(1, len(samples)),
@@ -183,4 +230,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
