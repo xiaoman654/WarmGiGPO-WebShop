@@ -1,0 +1,28 @@
+# Large upstream repos and data
+third_party/
+data/raw/
+data/processed/
+checkpoints/
+outputs/sft/
+outputs/rl/
+
+# Model/data artifacts
+*.zip
+*.parquet
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Logs can be large; keep summaries instead
+logs/**/*.log
+
+# Python/cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# System/editor
+.DS_Store
+.vscode/
