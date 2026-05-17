@@ -81,6 +81,7 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
             errors.append(f"{split}:{sample_id}: history is not a list")
 
         target_action = str(row["target_action"]).strip()
+        assistant_target = str(row.get("assistant_target", target_action)).strip()
         if not ACTION_RE.match(target_action):
             warnings.append(f"{split}:{sample_id}: suspicious action format: {target_action!r}")
 
@@ -90,8 +91,17 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
         else:
             if messages[0].get("role") != "user" or messages[1].get("role") != "assistant":
                 errors.append(f"{split}:{sample_id}: messages roles should be user/assistant")
-            if messages[1].get("content") != target_action:
-                errors.append(f"{split}:{sample_id}: assistant message does not equal target_action")
+            if messages[1].get("content") != assistant_target:
+                errors.append(f"{split}:{sample_id}: assistant message does not equal assistant_target")
+
+        target_format = row.get("target_format", "action")
+        if target_format == "verl":
+            if "<think>" not in assistant_target or "</think>" not in assistant_target:
+                errors.append(f"{split}:{sample_id}: verl target missing think tags")
+            if "<action>" not in assistant_target or "</action>" not in assistant_target:
+                errors.append(f"{split}:{sample_id}: verl target missing action tags")
+            if target_action not in assistant_target:
+                errors.append(f"{split}:{sample_id}: target_action not included in assistant_target")
 
         try:
             traj_ids.add(int(row["trajectory_id"]))
@@ -198,4 +208,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -72,7 +72,15 @@ def make_prompt(instruction: str, history: list[str], observation: str) -> str:
     )
 
 
-def iter_samples(input_path: Path) -> Iterable[dict[str, Any]]:
+def format_assistant_target(action: str, target_format: str) -> str:
+    if target_format == "action":
+        return action
+    if target_format == "verl":
+        return f"<think></think>\n<action>{action}</action>"
+    raise ValueError(f"Unsupported target_format: {target_format}")
+
+
+def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any]]:
     with input_path.open("r", encoding="utf-8") as f:
         for traj_id, line in enumerate(f):
             if not line.strip():
@@ -97,6 +105,7 @@ def iter_samples(input_path: Path) -> Iterable[dict[str, Any]]:
                 history = [str(action).strip() for action in actions[:step_id]]
                 prompt = make_prompt(instruction, history, observation)
                 sample_id = f"traj_{traj_id:05d}_step_{step_id:03d}"
+                assistant_target = format_assistant_target(target_action, target_format)
 
                 yield {
                     "sample_id": sample_id,
@@ -109,10 +118,12 @@ def iter_samples(input_path: Path) -> Iterable[dict[str, Any]]:
                     "target_action": target_action,
                     "raw_action": str(raw_actions[step_id]).strip() if step_id < len(raw_actions) else target_action,
                     "action_type": action_type(target_action),
+                    "target_format": target_format,
+                    "assistant_target": assistant_target,
                     "prompt": prompt,
                     "messages": [
                         {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": target_action},
+                        {"role": "assistant", "content": assistant_target},
                     ],
                     "source": "webshop_human_demo_il_trajs_finalized_images",
                 }
@@ -179,6 +190,12 @@ def main() -> None:
         default="trajectory",
         help="Use trajectory split for final SFT to avoid leaking steps from the same trajectory.",
     )
+    parser.add_argument(
+        "--target-format",
+        choices=["action", "verl"],
+        default="action",
+        help="assistant target format: raw action only, or verl <think>/<action> wrapper.",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -189,7 +206,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     samples = []
-    for sample in iter_samples(input_path):
+    for sample in iter_samples(input_path, args.target_format):
         samples.append(sample)
         if args.max_samples and len(samples) >= args.max_samples:
             break
@@ -206,6 +223,7 @@ def main() -> None:
         "num_valid": len(valid),
         "valid_ratio": args.valid_ratio,
         "split_by": args.split_by,
+        "target_format": args.target_format,
         "seed": args.seed,
         "trajectory_count": len({s["trajectory_id"] for s in samples}),
         "train_trajectory_count": len({s["trajectory_id"] for s in train}),

@@ -22,7 +22,29 @@ python scripts/data/build_webshop_sft_dataset.py \
   --input data/raw/webshop_demos/il_trajs_finalized_images/il_trajs_finalized_images.jsonl \
   --out-dir data/processed/sft_step_level \
   --valid-ratio 0.1 \
-  --seed 42
+  --seed 42 \
+  --split-by trajectory
+```
+
+For SFT that is aligned with the default `verl-agent` WebShop prompt and
+projection parser, use `--target-format verl`:
+
+```bash
+python scripts/data/build_webshop_sft_dataset.py \
+  --input data/raw/webshop_demos/il_trajs_finalized_images/il_trajs_finalized_images.jsonl \
+  --out-dir data/processed/sft_step_level_verl \
+  --valid-ratio 0.1 \
+  --seed 42 \
+  --split-by trajectory \
+  --target-format verl
+```
+
+This keeps `target_action` as the raw WebShop action while setting the
+assistant message to:
+
+```text
+<think></think>
+<action>{target_action}</action>
 ```
 
 Outputs:
