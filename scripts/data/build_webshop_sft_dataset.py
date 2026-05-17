@@ -72,6 +72,87 @@ def make_prompt(instruction: str, history: list[str], observation: str) -> str:
     )
 
 
+def infer_available_actions(observation: str, available_actions: Any, target_action: str) -> list[str]:
+    actions = []
+    if isinstance(available_actions, list):
+        actions.extend(str(action).strip() for action in available_actions if str(action).strip())
+
+    for button in re.findall(r"\[button\]\s*(.*?)\s*\[button_\]", observation, flags=re.IGNORECASE):
+        text = button.strip()
+        if not text:
+            continue
+        if text.lower() == "search":
+            actions.append("search[<your query>]")
+        actions.append(f"click[{text.lower()}]")
+
+    # Human demos sometimes have empty available_actions. The verl prompt always
+    # includes admissible actions, so include the supervised action as a fallback
+    # to avoid training on an impossible prompt.
+    if target_action and target_action not in actions:
+        actions.append(target_action)
+
+    deduped = []
+    seen = set()
+    for action in actions:
+        key = action.lower()
+        if key not in seen:
+            deduped.append(action)
+            seen.add(key)
+    return deduped
+
+
+def make_history_context(states: list[str], actions: list[str], step_id: int, history_length: int = 2) -> str:
+    if step_id <= 0:
+        return ""
+
+    start = max(0, step_id - history_length)
+    chunks = []
+    for hist_idx in range(start, step_id):
+        obs = str(states[hist_idx]).strip().replace("\n", " [SEP] ")
+        action = str(actions[hist_idx]).strip()
+        chunks.append(f"[Observation {hist_idx + 1}: '{obs}', Action {hist_idx + 1}: '{action}']")
+    return "\n".join(chunks)
+
+
+def make_verl_prompt(
+    instruction: str,
+    states: list[str],
+    actions: list[str],
+    step_id: int,
+    observation: str,
+    available_actions: list[str],
+) -> str:
+    formatted_actions = "\n".join(f"'{action}'," for action in available_actions)
+    if step_id == 0:
+        return (
+            "You are an expert autonomous agent operating in the WebShop e-commerce environment.\n"
+            f"Your task is to: {instruction}.\n"
+            f"Your current observation is: {observation}.\n"
+            "Your admissible actions of the current situation are: \n"
+            "[\n"
+            f"{formatted_actions}\n"
+            "].\n\n"
+            "Now it's your turn to take one action for the current step.\n"
+            "You should first reason step-by-step about the current situation, then think carefully which admissible action best advances the shopping goal. This reasoning process MUST be enclosed within <think> </think> tags.\n"
+            "Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags."
+        )
+
+    history_context = make_history_context(states, actions, step_id)
+    return (
+        "You are an expert autonomous agent operating in the WebShop e-commerce environment.\n"
+        f"Your task is to: {instruction}.\n"
+        f"Prior to this step, you have already taken {step_id} step(s). Below are the most recent 2 observations and the corresponding actions you took: {history_context}\n"
+        f"You are now at step {step_id + 1} and your current observation is: {observation}.\n"
+        "Your admissible actions of the current situation are: \n"
+        "[\n"
+        f"{formatted_actions}\n"
+        "].\n\n"
+        "Now it's your turn to take one action for the current step.\n"
+        "You should first reason step-by-step about the current situation, then think carefully which admissible action best advances the shopping goal. This reasoning process MUST be enclosed within <think> </think> tags.\n"
+        "Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags."
+    )
+
+
 def format_assistant_target(action: str, target_format: str) -> str:
     if target_format == "action":
         return action
@@ -103,7 +184,23 @@ def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any
                     continue
 
                 history = [str(action).strip() for action in actions[:step_id]]
-                prompt = make_prompt(instruction, history, observation)
+                step_available_actions = available_actions[step_id] if step_id < len(available_actions) else []
+                normalized_available_actions = infer_available_actions(
+                    observation,
+                    step_available_actions,
+                    target_action,
+                )
+                if target_format == "verl":
+                    prompt = make_verl_prompt(
+                        instruction,
+                        states,
+                        actions,
+                        step_id,
+                        observation,
+                        normalized_available_actions,
+                    )
+                else:
+                    prompt = make_prompt(instruction, history, observation)
                 sample_id = f"traj_{traj_id:05d}_step_{step_id:03d}"
                 assistant_target = format_assistant_target(target_action, target_format)
 
@@ -114,7 +211,7 @@ def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any
                     "instruction": instruction,
                     "history": history,
                     "observation": observation,
-                    "available_actions": available_actions[step_id] if step_id < len(available_actions) else [],
+                    "available_actions": normalized_available_actions,
                     "target_action": target_action,
                     "raw_action": str(raw_actions[step_id]).strip() if step_id < len(raw_actions) else target_action,
                     "action_type": action_type(target_action),

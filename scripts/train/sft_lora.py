@@ -166,6 +166,8 @@ def save_sample_preview(
                 "history": row.get("history"),
                 "observation_prefix": str(row.get("observation", ""))[:1000],
                 "target_action": row.get("target_action"),
+                "assistant_target": row.get("assistant_target"),
+                "target_format": row.get("target_format"),
                 "action_type": row.get("action_type"),
             }
         )
