@@ -69,3 +69,29 @@ bash scripts/rl/run_qwen15b_sft_verl_gigpo_small.sh \
   2>&1 | tee logs/rl/qwen15b_sft_verl_gigpo_small_$(date +%Y%m%d_%H%M%S).log
 ```
 
+## Medium Comparison
+
+Create a shared medium split:
+
+```bash
+python scripts/rl/prepare_rl_small_data.py \
+  --train-size 64 \
+  --val-size 32 \
+  --out-dir /root/data/verl-agent/text_rl_medium
+```
+
+Run SFT warm-start first:
+
+```bash
+mkdir -p logs/rl
+bash scripts/rl/run_qwen15b_sft_verl_gigpo_medium.sh \
+  2>&1 | tee logs/rl/qwen15b_sft_verl_gigpo_medium_$(date +%Y%m%d_%H%M%S).log
+```
+
+Then run original GiGPO:
+
+```bash
+mkdir -p logs/rl
+bash scripts/rl/run_qwen15b_gigpo_medium.sh \
+  2>&1 | tee logs/rl/qwen15b_gigpo_medium_$(date +%Y%m%d_%H%M%S).log
+```
