@@ -42,3 +42,30 @@ grep -E "Initial validation metrics|Final validation metrics|Avg size of step-le
   logs/rl/*.log
 ```
 
+## Small Comparison
+
+Create a shared small split:
+
+```bash
+python scripts/rl/prepare_rl_small_data.py \
+  --train-size 16 \
+  --val-size 16 \
+  --out-dir /root/data/verl-agent/text_rl_small
+```
+
+Run original GiGPO:
+
+```bash
+mkdir -p logs/rl
+bash scripts/rl/run_qwen15b_gigpo_small.sh \
+  2>&1 | tee logs/rl/qwen15b_gigpo_small_$(date +%Y%m%d_%H%M%S).log
+```
+
+Run SFT warm-start GiGPO:
+
+```bash
+mkdir -p logs/rl
+bash scripts/rl/run_qwen15b_sft_verl_gigpo_small.sh \
+  2>&1 | tee logs/rl/qwen15b_sft_verl_gigpo_small_$(date +%Y%m%d_%H%M%S).log
+```
+

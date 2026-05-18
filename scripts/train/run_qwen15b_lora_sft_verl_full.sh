@@ -32,8 +32,7 @@ python scripts/train/sft_lora.py \
   --lora-dropout 0.05 \
   --logging-steps 20 \
   --eval-steps 100 \
-  --save-steps 100 \
-  --save-total-limit 3 \
+  --save-steps 999999 \
+  --save-total-limit 1 \
   --bf16 \
   --gradient-checkpointing
-
