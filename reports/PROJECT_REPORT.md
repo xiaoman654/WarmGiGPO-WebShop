@@ -181,6 +181,23 @@ reports/figures/rl_metrics/
 - SFT + GiGPO 基本没有 response clipping。
 - step-level group size 大多在 1.5-2.3 之间，符合 `env.rollout.n=2` 的设置。
 
+## 失败案例分析
+
+当前阶段已经完成初步失败案例分析，详见：
+
+```text
+reports/failure_cases/failure_case_analysis.md
+```
+
+定性观察与定量指标一致：
+
+- direct GiGPO 经常输出较长的 `<think>` 内容，有时甚至出现中文推理，导致 response length 高、clipping 风险更高。
+- direct GiGPO 的失败常见于 option mismatch、item selection error 和 search/query mismatch。
+- SFT + GiGPO 的输出更短，通常是 `<think></think><action>...</action>`，可解析性更强。
+- SFT + GiGPO 仍然会失败，但失败更多来自搜索质量、商品选择或选项选择，而不是动作格式本身。
+
+这进一步支持本文的解释：SFT warm-start 的主要作用是改善 rollout 行为分布，使 GiGPO 获得更干净的交互轨迹。
+
 ## GiGPO 机制视角
 
 GiGPO 的关键是 anchor state grouping 和 step-level advantage。SFT warm-start 可能有两种相反影响：

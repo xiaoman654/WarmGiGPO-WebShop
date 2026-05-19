@@ -59,3 +59,17 @@ bash scripts/eval/run_qwen15b_sft_verl_full_eval64.sh \
 
 These scripts use `trainer.val_only=True`, so the reported validation metrics are
 pure eval metrics without a dummy training step.
+
+Extract prompt/response/score cases for qualitative failure analysis:
+
+```bash
+python scripts/analysis/extract_eval_cases.py \
+  logs/rl/qwen15b_sft_verl_gigpo_medium_128_64_*.log \
+  logs/rl/qwen15b_gigpo_medium_128_64_*.log
+```
+
+Outputs:
+
+```text
+outputs/analysis/eval_cases/*.jsonl
+```
