@@ -18,7 +18,7 @@ Max episode steps: 5
 
 ## Interpretation
 
-SFT-only does not improve WebShop eval64 performance over zero-shot in this setting. Its task score is slightly lower than zero-shot, and success rate is the same.
+SFT-only does not directly improve WebShop eval64 performance over zero-shot in this setting. Its task score is slightly lower than zero-shot, and success rate is the same.
 
 However, SFT + GiGPO is far stronger than both direct GiGPO and SFT-only. This suggests that the main value of WebShop human-demo SFT is not direct task success, but better RL initialization. SFT teaches the model the WebShop action format and short-action prior, which improves rollout quality and makes GiGPO training more effective.
 

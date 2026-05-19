@@ -86,6 +86,21 @@ The results are consistent with the following mechanism:
 
 The SFT stage does not solve WebShop by itself, but it changes the starting distribution enough for GiGPO to learn more effectively.
 
+## Contribution Decomposition
+
+The eval64 decomposition compares zero-shot, SFT-only, direct GiGPO, and SFT + GiGPO on the same evaluation split:
+
+| Method | val/text/test_score | success_rate | webshop_task_score |
+|---|---:|---:|---:|
+| Zero-shot | 0.1286 | 0.0156 | 0.0647 |
+| SFT-only | 0.0962 | 0.0156 | 0.0583 |
+| GiGPO | 0.2894 | 0.0469 | 0.0511 |
+| SFT + GiGPO | 3.2639 | 0.3281 | 0.5605 |
+
+This decomposition is important because SFT-only does not directly outperform zero-shot. The main gain appears only when SFT is used as the initialization for GiGPO. Therefore, the current evidence should be interpreted as an RL warm-start effect rather than a standalone supervised-learning improvement.
+
+In other words, SFT does not make the model a strong WebShop agent by itself. It makes the model a better starting policy for GiGPO by improving action format, output length, and rollout parseability.
+
 ## GiGPO-Specific Implications
 
 GiGPO relies on useful trajectory variation and anchor state grouping. SFT can affect this mechanism in two competing ways:

@@ -142,6 +142,19 @@ SFT + GiGPO 在三个层面显著优于 direct GiGPO：
 
 这说明 SFT warm-start 的主要作用不是简单提高初始 reward，而是改善 rollout 分布，使模型更容易输出 WebShop 可解析的短动作。
 
+### 能力分解
+
+为了区分 SFT 本身和 RL warm-start 的贡献，我们在同一个 eval64 split 上比较了 zero-shot、SFT-only、direct GiGPO 和 SFT + GiGPO：
+
+| Method | val/text/test_score | success_rate | webshop_task_score |
+|---|---:|---:|---:|
+| Zero-shot | 0.1286 | 0.0156 | 0.0647 |
+| SFT-only | 0.0962 | 0.0156 | 0.0583 |
+| GiGPO | 0.2894 | 0.0469 | 0.0511 |
+| SFT + GiGPO | 3.2639 | 0.3281 | 0.5605 |
+
+这个结果说明，SFT-only 并没有直接提升 WebShop eval64 的最终表现；它的 success rate 与 zero-shot 相同，task score 还略低。SFT 的主要价值体现在作为 RL warm-start：它使模型进入 GiGPO 时具备更好的 WebShop action format 和短动作 prior，从而显著改善后续 rollout 质量和 RL 学习效果。
+
 ## 曲线分析
 
 已生成曲线位于：
@@ -213,6 +226,9 @@ Direct GiGPO 128/64：
 5. KL reference ablation 尚未完成：
    - 后续可比较 reference=SFT checkpoint 和 reference=original Qwen。
 
+6. SFT-only 不是强策略：
+   - 当前 SFT-only 在 eval64 上没有超过 zero-shot，因此本项目结论应表述为 SFT 改善 RL 初始化和 rollout 分布，而不是 SFT 单独解决 WebShop。
+
 ## 后续扩展
 
 后续扩展不会影响当前报告主结论，可以作为 additional experiments：
@@ -244,4 +260,3 @@ Direct GiGPO 128/64：
 在当前 WebShop train128/eval64 设置下，WebShop human-demo SFT warm-start 明显提升了 Qwen2.5-1.5B-Instruct 的 GiGPO 后训练效果。SFT + GiGPO 不仅取得更高的 success rate 和 WebShop task score，还显著改善了 rollout 行为，包括动作合法性、输出长度和 response clipping。
 
 这表明，在 critic-free Agentic RL 中，SFT imitation prior 可以作为有效的 warm-start，降低早期探索难度，并提高 GiGPO 的训练信号质量。
-
