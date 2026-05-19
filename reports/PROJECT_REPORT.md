@@ -277,3 +277,23 @@ Direct GiGPO 128/64：
 在当前 WebShop train128/eval64 设置下，WebShop human-demo SFT warm-start 明显提升了 Qwen2.5-1.5B-Instruct 的 GiGPO 后训练效果。SFT + GiGPO 不仅取得更高的 success rate 和 WebShop task score，还显著改善了 rollout 行为，包括动作合法性、输出长度和 response clipping。
 
 这表明，在 critic-free Agentic RL 中，SFT imitation prior 可以作为有效的 warm-start，降低早期探索难度，并提高 GiGPO 的训练信号质量。
+
+## Appendix: SFT Data Size Ablation
+
+An additional SFT data-size ablation was completed on the same WebShop 128/64
+RL setting.
+
+| Method | val/text/test_score | success_rate | webshop_task_score | valid_action_ratio | response_len_mean | response_clip_ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| GiGPO | 0.2894 | 0.0469 | 0.0511 | 0.974 | 73.487 | 0.026 |
+| SFT-500 + GiGPO | 0.0955 | 0.0156 | 0.0429 | 0.974 | 25.579 | 0.000 |
+| SFT-2k + GiGPO | 1.0309 | 0.1094 | 0.3129 | 1.000 | 21.429 | 0.000 |
+| SFT-full + GiGPO | 3.2639 | 0.3281 | 0.5605 | 1.000 | 21.919 | 0.000 |
+
+The result shows that SFT warm-start has a data-size threshold. SFT-500 is
+enough to make responses shorter and mostly parseable, but it does not improve
+GiGPO performance over the direct GiGPO baseline. SFT-2k already gives a
+substantial improvement, and the full SFT set remains the strongest setting.
+This indicates that the SFT benefit is not only format alignment; larger
+step-level demonstration sets help the model learn WebShop-specific search and
+selection behavior before RL.

@@ -10,9 +10,11 @@ Recommended reading order:
 2. `analysis/rl_results_analysis.md`  
    More detailed RL result interpretation and curve-level observations.
 
-3. `tables/rl_128_64_main_comparison.md`  
+3. `tables/rl_128_64_main_comparison.md`
    Main numeric comparison between direct GiGPO and SFT + GiGPO.
 
-4. `figures/rl_metrics/`  
-   Training and behavior curves parsed from the 128/64 RL logs.
+4. `tables/sft_data_ablation_template.md`
+   SFT-500, SFT-2k, and SFT-full data-size ablation results.
 
+5. `figures/rl_metrics/`
+   Training and behavior curves parsed from the 128/64 RL logs.

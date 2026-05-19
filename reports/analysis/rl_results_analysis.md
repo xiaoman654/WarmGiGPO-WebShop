@@ -101,6 +101,29 @@ This decomposition is important because SFT-only does not directly outperform ze
 
 In other words, SFT does not make the model a strong WebShop agent by itself. It makes the model a better starting policy for GiGPO by improving action format, output length, and rollout parseability.
 
+## SFT Data Size Ablation
+
+We further tested whether the SFT warm-start effect depends on the amount of
+step-level demonstration data. The SFT-500, SFT-2k, and SFT-full models use the
+same verl-aligned target format and the same downstream GiGPO 128/64 setting.
+
+| Method | val/text/test_score | success_rate | webshop_task_score | valid_action_ratio | response_len_mean | response_clip_ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| GiGPO | 0.2894 | 0.0469 | 0.0511 | 0.974 | 73.487 | 0.026 |
+| SFT-500 + GiGPO | 0.0955 | 0.0156 | 0.0429 | 0.974 | 25.579 | 0.000 |
+| SFT-2k + GiGPO | 1.0309 | 0.1094 | 0.3129 | 1.000 | 21.429 | 0.000 |
+| SFT-full + GiGPO | 3.2639 | 0.3281 | 0.5605 | 1.000 | 21.919 | 0.000 |
+
+The ablation shows a threshold effect. SFT-500 stabilizes output length and
+formatting but does not improve final WebShop score over direct GiGPO. SFT-2k
+already provides a meaningful policy prior, improving task score to 0.3129 and
+success rate to 0.1094. The full SFT set further improves both metrics.
+
+This supports a more precise interpretation of the warm-start effect: a small
+amount of imitation data can teach the action protocol, but more demonstrations
+are needed to learn WebShop-specific search and selection behavior that GiGPO
+can build on.
+
 ## GiGPO-Specific Implications
 
 GiGPO relies on useful trajectory variation and anchor state grouping. SFT can affect this mechanism in two competing ways:
