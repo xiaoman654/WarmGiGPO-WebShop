@@ -95,3 +95,38 @@ mkdir -p logs/rl
 bash scripts/rl/run_qwen15b_gigpo_medium.sh \
   2>&1 | tee logs/rl/qwen15b_gigpo_medium_$(date +%Y%m%d_%H%M%S).log
 ```
+
+## SFT Data Size Ablation on 128/64
+
+After training and merging the SFT-500 and SFT-2k adapters, first run SFT-only
+eval64 for the contribution decomposition:
+
+```bash
+mkdir -p logs/eval
+
+bash scripts/eval/run_qwen15b_sft500_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_sft500_eval64_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/eval/run_qwen15b_sft2k_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_sft2k_eval64_$(date +%Y%m%d_%H%M%S).log
+```
+
+Then run the matched SFT+GiGPO 128/64 comparison. These scripts use
+`/root/data/verl-agent/text_128_64/{train,test}.parquet` and the same GiGPO
+hyperparameters as the main 128/64 experiment.
+
+```bash
+mkdir -p logs/rl
+
+bash scripts/rl/run_qwen15b_sft500_gigpo_128_64.sh \
+  2>&1 | tee logs/rl/qwen15b_sft500_gigpo_128_64_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/rl/run_qwen15b_sft2k_gigpo_128_64.sh \
+  2>&1 | tee logs/rl/qwen15b_sft2k_gigpo_128_64_$(date +%Y%m%d_%H%M%S).log
+```
+
+Record the final values in:
+
+```text
+reports/tables/sft_data_ablation_template.md
+```

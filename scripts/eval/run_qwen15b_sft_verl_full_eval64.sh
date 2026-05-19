@@ -15,6 +15,7 @@ PROJECT_DIR=${PROJECT_DIR:-/root/autodl-fs/WarmGiGPO-WebShop}
 MODEL_DIR=${MODEL_DIR:-/root/autodl-fs/WarmGiGPO-WebShop/outputs/sft/qwen25_1p5b_webshop_lora_verl_full/merged_model}
 TRAIN_FILE=${TRAIN_FILE:-/root/data/verl-agent/text_128_64/train.parquet}
 VAL_FILE=${VAL_FILE:-/root/data/verl-agent/text_128_64/test.parquet}
+EXPERIMENT_NAME=${EXPERIMENT_NAME:-qwen15b_sft_verl_full_eval64}
 
 cd "$PROJECT_DIR/third_party/verl-agent"
 
@@ -65,7 +66,7 @@ python -m verl.trainer.main_ppo \
   trainer.critic_warmup=0 \
   trainer.logger='[console]' \
   trainer.project_name=verl_agent_webshop \
-  trainer.experiment_name=qwen15b_sft_verl_full_eval64 \
+  trainer.experiment_name="$EXPERIMENT_NAME" \
   trainer.n_gpus_per_node=1 \
   trainer.nnodes=1 \
   trainer.save_freq=-1 \
@@ -73,4 +74,3 @@ python -m verl.trainer.main_ppo \
   trainer.total_epochs=1 \
   trainer.val_before_train=True \
   trainer.val_only=True
-

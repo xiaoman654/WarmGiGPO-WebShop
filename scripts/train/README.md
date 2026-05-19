@@ -50,3 +50,34 @@ python scripts/train/merge_lora_adapter.py \
   --adapter outputs/sft/qwen25_1p5b_webshop_lora_full/final_adapter \
   --output-dir outputs/sft/qwen25_1p5b_webshop_lora_full/merged_model
 ```
+
+## SFT Data Size Ablation
+
+Use these scripts to test whether SFT warm-start quality depends on the number
+of WebShop demonstration steps. They keep the same model, LoRA config, seed,
+validation subset, and prompt/target format as the full verl-aligned SFT run.
+
+```bash
+cd /root/autodl-fs/WarmGiGPO-WebShop
+mkdir -p logs/train
+
+bash scripts/train/run_qwen15b_lora_sft_verl_500.sh \
+  2>&1 | tee logs/train/qwen15b_lora_sft_verl_500_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/train/run_qwen15b_lora_sft_verl_2k.sh \
+  2>&1 | tee logs/train/qwen15b_lora_sft_verl_2k_$(date +%Y%m%d_%H%M%S).log
+```
+
+Merge the ablation adapters before SFT-only eval or RL warm-start:
+
+```bash
+bash scripts/train/merge_sft_ablation_adapters.sh \
+  2>&1 | tee logs/train/merge_sft_ablation_adapters_$(date +%Y%m%d_%H%M%S).log
+```
+
+Expected outputs:
+
+```text
+outputs/sft/qwen25_1p5b_webshop_lora_verl_500/
+outputs/sft/qwen25_1p5b_webshop_lora_verl_2k/
+```
