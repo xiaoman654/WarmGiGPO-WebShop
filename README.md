@@ -59,6 +59,18 @@ logs/
 
 Large upstream repositories, raw data, processed data, checkpoints, and model outputs are intentionally ignored by git.
 
+## Server Command Rules
+
+Before generating or running server-side training/evaluation commands, check:
+
+```text
+SERVER_COMMAND_RULES.md
+```
+
+Long-running SFT, eval, and RL commands must save stdout/stderr with `tee` into
+`logs/train/`, `logs/eval/`, or `logs/rl/`. Do not rely on terminal scrollback
+for experiment records.
+
 ## Report
 
 Start with:
@@ -84,4 +96,3 @@ reports/tables/rl_128_64_main_comparison.md
 The current evidence suggests that WebShop human-demo SFT provides a useful imitation prior for GiGPO. It improves the quality of rollout trajectories by making actions shorter, more valid, and less likely to be clipped. This cleaner rollout distribution appears to make GiGPO training more effective.
 
 Future extensions include SFT data-size ablations, KL reference ablations, and trajectory-level failure analysis.
-
