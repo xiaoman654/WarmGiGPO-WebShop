@@ -29,6 +29,40 @@ SFT improves not only final task performance but also the quality of the rollout
 
 This suggests that the imitation prior learned from WebShop demonstrations reduces exploration waste from malformed, overlong, or hard-to-parse actions.
 
+## Curve-Level Observations
+
+The RL metric curves generated from the 128/64 logs provide a more detailed view of how the performance gap emerges.
+
+Recommended main-text figures:
+
+- `reports/figures/rl_metrics/val_success_rate.png`
+- `reports/figures/rl_metrics/val_webshop_task_score_not_success_rate.png`
+- `reports/figures/rl_metrics/episode_valid_action_ratio.png`
+- `reports/figures/rl_metrics/response_length_mean.png`
+- `reports/figures/rl_metrics/response_length_clip_ratio.png`
+- `reports/figures/rl_metrics/step_level_group_size.png`
+
+The validation curves show that SFT + GiGPO improves steadily across validation checkpoints, while direct GiGPO remains much flatter. In the final validation, SFT + GiGPO reaches 0.3281 success rate and 0.5605 WebShop task score, compared with 0.0469 success rate and 0.0511 task score for direct GiGPO.
+
+The behavior curves show a clearer mechanism:
+
+- SFT + GiGPO keeps valid action ratio close to 1.0 for almost the whole run.
+- Direct GiGPO starts with much lower valid action ratio and only becomes more stable later.
+- SFT + GiGPO keeps response length near 20-30 tokens.
+- Direct GiGPO often produces 70-100 token responses.
+- SFT + GiGPO almost never clips responses, while direct GiGPO has visible clipping in multiple steps.
+
+These curves support the interpretation that SFT improves the quality of rollout trajectories before and during RL.
+
+## Efficiency Observations
+
+The `timing_s_step.png` curve should be interpreted carefully. Steps with validation are much slower because WebShop evaluation is expensive. This is expected under the current configuration:
+
+- normal training steps are usually around 20-35 seconds,
+- validation steps can take several hundred seconds.
+
+Therefore, the main runtime bottleneck is not only model update but also periodic WebShop validation. For larger experiments, reducing validation frequency or validation set size is one of the simplest ways to control cost.
+
 ## Evidence From Small Runs
 
 The small comparison already showed the same pattern:
@@ -61,12 +95,10 @@ GiGPO relies on useful trajectory variation and anchor state grouping. SFT can a
 
 In the current 128/64 setting, the positive effect appears dominant. SFT + GiGPO improves both success rate and task score while maintaining stable action formatting.
 
+The step-level group size curves show that average group size mostly stays around 1.5-2.3, which is reasonable under `env.rollout.n=2`. Direct GiGPO tends to show slightly larger or more variable group sizes, while SFT + GiGPO is somewhat more concentrated. This is consistent with the idea that SFT narrows the action distribution and makes rollouts more regular, while still leaving enough variation for GiGPO's step-level comparison.
+
 The next analysis should extract:
 
-- average step-level group size over training,
-- valid action ratio curve,
-- response length curve,
-- reward / success / task score curve,
 - examples of successful and failed trajectories.
 
 ## Limitations
@@ -89,4 +121,3 @@ These limitations do not invalidate the result, but they should be stated clearl
 5. Add a small ablation on KL reference if time allows:
    - SFT + GiGPO with reference = SFT checkpoint.
    - SFT + GiGPO with reference = original Qwen checkpoint.
-
