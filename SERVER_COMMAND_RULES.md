@@ -14,6 +14,7 @@ bash scripts/path/to/run.sh
 Always save stdout and stderr with `tee`:
 
 ```bash
+set -o pipefail
 mkdir -p logs/train logs/eval logs/rl
 
 bash scripts/path/to/run.sh \
@@ -39,6 +40,7 @@ Example:
 
 ```bash
 cd /root/autodl-fs/WarmGiGPO-WebShop
+set -o pipefail
 
 ls -lh outputs/sft/qwen25_1p5b_webshop_lora_verl_500/merged_model
 
@@ -46,8 +48,9 @@ mkdir -p logs/eval
 bash scripts/eval/run_qwen15b_sft500_eval64.sh \
   2>&1 | tee logs/eval/qwen15b_sft500_eval64_$(date +%Y%m%d_%H%M%S).log
 
+latest=$(ls -t logs/eval/qwen15b_sft500_eval64_*.log | head -1)
 grep -E "Initial validation metrics|Final validation metrics|step:0|val/text/test_score|val/success_rate|val/webshop_task_score" \
-  logs/eval/qwen15b_sft500_eval64_*.log
+  "$latest"
 ```
 
 ## 3. Use Descriptive Log Names
@@ -90,25 +93,40 @@ wrong.
 
 ## 5. Extract Metrics Immediately After Each Run
 
+Prefer checking the newest log from the run that just finished, instead of
+grepping all historical logs. This prevents old experiments from being mixed
+into the result.
+
 After SFT training:
 
 ```bash
+latest=$(ls -t logs/train/qwen15b_lora_sft_verl_500_*.log | head -1)
 grep -E "train_rows|valid_rows|eval_loss|train_runtime|train_loss|saved final adapter" \
-  logs/train/*.log
+  "$latest"
 ```
 
 After SFT-only eval:
 
 ```bash
+latest=$(ls -t logs/eval/qwen15b_sft500_eval64_*.log | head -1)
 grep -E "Initial validation metrics|step:0|Final validation metrics|val/text/test_score|val/success_rate|val/webshop_task_score" \
-  logs/eval/*.log
+  "$latest"
 ```
 
 After RL/GiGPO:
 
 ```bash
+latest=$(ls -t logs/rl/qwen15b_sft500_gigpo_128_64_*.log | head -1)
 grep -E "Initial validation metrics|Final validation metrics|step:0|step:8|step:16|step:24|step:32|valid_action_ratio|response_length/mean|response_length/clip_ratio|val/text/test_score|val/success_rate|val/webshop_task_score|perf/max_memory" \
-  logs/rl/*.log
+  "$latest"
+```
+
+When comparing several runs, explicitly list their log patterns:
+
+```bash
+grep -E "Final validation metrics|step:32|val/text/test_score|val/success_rate|val/webshop_task_score" \
+  logs/rl/qwen15b_sft500_gigpo_128_64_*.log \
+  logs/rl/qwen15b_sft2k_gigpo_128_64_*.log
 ```
 
 ## 6. One Expensive GPU Run at a Time
@@ -116,6 +134,13 @@ grep -E "Initial validation metrics|Final validation metrics|step:0|step:8|step:
 Do not run multiple A800 RL experiments in parallel unless explicitly requested.
 The previous 128/64 runs used roughly 65-76 GB reserved GPU memory, so parallel
 runs are risky.
+
+Before starting another GPU job, check whether an old run is still active:
+
+```bash
+ps aux | grep -E "main_ppo|TaskRunner|WorkerDict|actor_rollout|vllm|sft_lora.py|python" | grep -v grep
+nvidia-smi
+```
 
 ## 7. Preserve Results Before Shutdown
 
@@ -143,4 +168,3 @@ grep -R "step:32" /tmp/ray/session_latest/logs/worker-*.out | tail -5
 
 Recovered Ray output should be treated as provisional unless the experiment name
 or model path can be identified.
-
