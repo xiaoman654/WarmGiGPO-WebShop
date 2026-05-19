@@ -43,3 +43,19 @@ Outputs:
 outputs/analysis/rl_metrics/*.csv
 reports/figures/rl_metrics/*.png
 ```
+
+For the contribution-decomposition evals, run zero-shot and SFT-only on the same
+eval64 split used by the 128/64 RL comparison:
+
+```bash
+mkdir -p logs/eval
+
+bash scripts/eval/run_qwen15b_zero_shot_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_zero_shot_eval64_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/eval/run_qwen15b_sft_verl_full_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_sft_verl_full_eval64_$(date +%Y%m%d_%H%M%S).log
+```
+
+These scripts use `trainer.val_only=True`, so the reported validation metrics are
+pure eval metrics without a dummy training step.
