@@ -16,5 +16,8 @@ Recommended reading order:
 4. `tables/sft_data_ablation_template.md`
    SFT-500, SFT-2k, and SFT-full data-size ablation results.
 
-5. `figures/rl_metrics/`
+5. `tables/kl_reference_ablation.md`
+   KL reference ablation comparing SFT reference vs original base-model reference.
+
+6. `figures/rl_metrics/`
    Training and behavior curves parsed from the 128/64 RL logs.

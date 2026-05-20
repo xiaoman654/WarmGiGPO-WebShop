@@ -297,3 +297,27 @@ substantial improvement, and the full SFT set remains the strongest setting.
 This indicates that the SFT benefit is not only format alignment; larger
 step-level demonstration sets help the model learn WebShop-specific search and
 selection behavior before RL.
+
+## Appendix: KL Reference Ablation
+
+A KL reference ablation was completed on the same WebShop 128/64 setting. The
+actor and rollout policy were initialized from the full SFT merged checkpoint,
+while the reference policy was changed from the SFT checkpoint to the original
+Qwen2.5-1.5B-Instruct base model.
+
+| Actor init | KL reference | val/text/test_score | success_rate | webshop_task_score | actor/kl_loss | valid_action_ratio | response_len_mean | response_clip_ratio |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| SFT-full | SFT-full | 3.2639 | 0.3281 | 0.5605 | 0.020 | 1.000 | 21.919 | 0.000 |
+| SFT-full | Base Qwen | 0.0000 | 0.0000 | 0.0000 | 1.394 | 1.000 | 23.838 | 0.000 |
+
+This result shows that the SFT checkpoint is important not only as actor
+initialization but also as the KL reference anchor. When the reference is the
+original base model, the actor KL loss becomes much larger and the final
+validation performance collapses to zero. This suggests that the base-model
+reference regularizes the SFT-initialized policy toward a pre-SFT distribution,
+penalizing the WebShop-specific action prior learned during SFT.
+
+Therefore, the current evidence supports a stronger interpretation of the
+warm-start mechanism: SFT improves rollout quality and provides a compatible
+reference policy for GiGPO, allowing RL to build on the imitation prior rather
+than fight against it.

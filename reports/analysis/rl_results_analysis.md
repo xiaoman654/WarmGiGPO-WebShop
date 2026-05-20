@@ -135,6 +135,32 @@ In the current 128/64 setting, the positive effect appears dominant. SFT + GiGPO
 
 The step-level group size curves show that average group size mostly stays around 1.5-2.3, which is reasonable under `env.rollout.n=2`. Direct GiGPO tends to show slightly larger or more variable group sizes, while SFT + GiGPO is somewhat more concentrated. This is consistent with the idea that SFT narrows the action distribution and makes rollouts more regular, while still leaving enough variation for GiGPO's step-level comparison.
 
+## KL Reference Ablation
+
+We tested whether the SFT warm-start effect comes only from actor
+initialization, or whether the KL reference policy also matters. In this
+ablation, the actor and rollout are still initialized from the full SFT merged
+checkpoint, but the reference policy is changed from the SFT checkpoint to the
+original Qwen2.5-1.5B-Instruct base model.
+
+| Actor init | KL reference | val/text/test_score | success_rate | webshop_task_score | actor/kl_loss | valid_action_ratio | response_len_mean | response_clip_ratio |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| SFT-full | SFT-full | 3.2639 | 0.3281 | 0.5605 | 0.020 | 1.000 | 21.919 | 0.000 |
+| SFT-full | Base Qwen | 0.0000 | 0.0000 | 0.0000 | 1.394 | 1.000 | 23.838 | 0.000 |
+
+The base-reference run completed successfully, but final validation collapsed
+to zero. The key signal is `actor/kl_loss`: it rises from about 0.020 in the
+SFT-reference run to 1.394 when the reference is the original base model. This
+indicates a strong mismatch between the SFT-initialized WebShop policy and the
+base-model reference distribution.
+
+The result strengthens the mechanism story. SFT is not just a better starting
+point for the actor. It also provides a better KL anchor for preserving the
+WebShop-specific action prior during GiGPO. When the reference is changed back
+to the original model, the policy still emits short and valid actions, but the
+optimization is constrained toward a pre-SFT distribution and fails to preserve
+the task-performance gains.
+
 The next analysis should extract:
 
 - examples of successful and failed trajectories.
@@ -156,6 +182,4 @@ These limitations do not invalidate the result, but they should be stated clearl
 2. Add trajectory examples for direct GiGPO and SFT + GiGPO.
 3. Run a second seed for the 128/64 comparison if GPU budget allows.
 4. Optionally increase max episode steps to 8 for a more realistic WebShop setting.
-5. Add a small ablation on KL reference if time allows:
-   - SFT + GiGPO with reference = SFT checkpoint.
-   - SFT + GiGPO with reference = original Qwen checkpoint.
+5. Add a system bottleneck analysis for rollout, validation, and environment interaction time.
