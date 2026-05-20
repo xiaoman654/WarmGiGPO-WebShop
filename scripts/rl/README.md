@@ -130,3 +130,34 @@ Record the final values in:
 ```text
 reports/tables/sft_data_ablation_template.md
 ```
+
+## KL Reference Ablation on 128/64
+
+This run keeps the actor and rollout initialized from the full SFT merged model,
+but changes the KL reference policy to the original Qwen2.5-1.5B-Instruct base
+model. Compare it with the main SFT+GiGPO 128/64 run, where the reference policy
+is the same SFT checkpoint as the actor.
+
+```bash
+cd /root/autodl-fs/WarmGiGPO-WebShop
+set -o pipefail
+
+echo "===== pre-check active jobs ====="
+ps aux | grep -E "main_ppo|TaskRunner|WorkerDict|actor_rollout|vllm|sft_lora.py|python" | grep -v grep || true
+nvidia-smi
+
+echo "===== pre-check model and data ====="
+ls -lh outputs/sft/qwen25_1p5b_webshop_lora_verl_full/merged_model
+ls -lh /root/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306
+ls -lh /root/data/verl-agent/text_128_64/train.parquet /root/data/verl-agent/text_128_64/test.parquet
+
+mkdir -p logs/rl
+bash scripts/rl/run_qwen15b_sft_verl_gigpo_128_64_ref_base.sh \
+  2>&1 | tee logs/rl/qwen15b_sft_verl_gigpo_128_64_ref_base_$(date +%Y%m%d_%H%M%S).log
+
+echo "===== post-check latest log ====="
+latest=$(ls -t logs/rl/qwen15b_sft_verl_gigpo_128_64_ref_base_*.log | head -1)
+ls -lh "$latest"
+grep -E "Initial validation metrics|Final validation metrics|step:0|step:8|step:16|step:24|step:32|valid_action_ratio|response_length/mean|response_length/clip_ratio|val/text/test_score|val/success_rate|val/webshop_task_score|perf/max_memory" \
+  "$latest"
+```

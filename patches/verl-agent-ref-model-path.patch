@@ -1,0 +1,28 @@
+diff --git a/verl/trainer/config/ppo_trainer.yaml b/verl/trainer/config/ppo_trainer.yaml
+index d0f68ba..3c691ca 100644
+--- a/verl/trainer/config/ppo_trainer.yaml
++++ b/verl/trainer/config/ppo_trainer.yaml
+@@ -88,6 +88,9 @@ actor_rollout_ref:
+       fsdp_size: -1
+   ref:
+     strategy: fsdp
++    # Optional reference-policy model path. When null, the reference model uses
++    # actor_rollout_ref.model.path, which preserves the default verl behavior.
++    model_path: null
+     fsdp_config:
+       param_offload: False
+       reshard_after_forward: True # only for fsdp2, [True, False, int between 1 and fsdp_size]
+diff --git a/verl/workers/fsdp_workers.py b/verl/workers/fsdp_workers.py
+index 7d9b8b4..2aa77a5 100644
+--- a/verl/workers/fsdp_workers.py
++++ b/verl/workers/fsdp_workers.py
+@@ -569,7 +569,8 @@ class ActorRolloutRefWorker(Worker):
+             self.rollout, self.rollout_sharding_manager = self._build_rollout(trust_remote_code=self.config.model.get("trust_remote_code", False))
+ 
+         if self._is_ref:
+-            local_path = copy_to_local(self.config.model.path, use_shm=use_shm)
++            ref_model_path = self.config.ref.get("model_path", None) or self.config.model.path
++            local_path = copy_to_local(ref_model_path, use_shm=use_shm)
+             self.ref_module_fsdp = self._build_model_optimizer(
+                 model_path=local_path,
+                 fsdp_config=self.config.ref.fsdp_config,

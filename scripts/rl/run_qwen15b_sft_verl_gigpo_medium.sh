@@ -13,6 +13,7 @@ export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 
 PROJECT_DIR=${PROJECT_DIR:-/root/autodl-fs/WarmGiGPO-WebShop}
 MODEL_DIR=${MODEL_DIR:-/root/autodl-fs/WarmGiGPO-WebShop/outputs/sft/qwen25_1p5b_webshop_lora_verl_full/merged_model}
+REF_MODEL_DIR=${REF_MODEL_DIR:-$MODEL_DIR}
 TRAIN_FILE=${TRAIN_FILE:-/root/data/verl-agent/text_rl_medium/train.parquet}
 VAL_FILE=${VAL_FILE:-/root/data/verl-agent/text_rl_medium/test.parquet}
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-qwen15b_sft_verl_gigpo_medium}
@@ -31,6 +32,7 @@ python -m verl.trainer.main_ppo \
   data.truncation=error \
   data.return_raw_chat=True \
   actor_rollout_ref.model.path="$MODEL_DIR" \
+  actor_rollout_ref.ref.model_path="$REF_MODEL_DIR" \
   actor_rollout_ref.actor.optim.lr=1e-6 \
   actor_rollout_ref.model.use_remove_padding=True \
   actor_rollout_ref.model.enable_gradient_checkpointing=False \
