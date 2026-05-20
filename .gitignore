@@ -18,6 +18,9 @@ outputs/rl/
 # Logs can be large; keep summaries instead
 logs/**/*.log
 
+# Local handoff / private project notes
+PROJECT_HANDOFF.md
+
 # Python/cache
 __pycache__/
 *.pyc
