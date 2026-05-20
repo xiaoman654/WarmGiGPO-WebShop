@@ -19,5 +19,11 @@ Recommended reading order:
 5. `tables/kl_reference_ablation.md`
    KL reference ablation comparing SFT reference vs original base-model reference.
 
-6. `figures/rl_metrics/`
+6. `tables/final_experiment_summary.md`
+   One-table summary of the completed zero-shot, SFT, GiGPO, ablation, and KL-reference experiments.
+
+7. `analysis/system_bottleneck_analysis.md`
+   Timing analysis showing that WebShop validation and rollout dominate wall-clock cost.
+
+8. `figures/rl_metrics/`
    Training and behavior curves parsed from the 128/64 RL logs.

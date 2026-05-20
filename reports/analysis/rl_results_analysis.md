@@ -161,6 +161,22 @@ to the original model, the policy still emits short and valid actions, but the
 optimization is constrained toward a pre-SFT distribution and fails to preserve
 the task-performance gains.
 
+## System Bottleneck Summary
+
+The timing logs show that WebShop Agentic RL is rollout and validation heavy.
+Normal 128/64 training steps take about 21-25 seconds, and actor update accounts
+for only about 30-32% of that time. Validation steps are much more expensive:
+the final validation steps take about 337-437 seconds, with `timing_s/testing`
+accounting for roughly 94% of the total step time.
+
+This means that future engineering work should focus less on optimizing the
+actor update and more on environment interaction and rollout throughput:
+per-step latency profiling, observation caching, batched or parallel WebShop
+environment stepping, and eventually semi-async rollout collection.
+
+See `reports/analysis/system_bottleneck_analysis.md` for the detailed timing
+tables.
+
 The next analysis should extract:
 
 - examples of successful and failed trajectories.

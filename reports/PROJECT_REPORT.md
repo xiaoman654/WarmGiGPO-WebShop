@@ -321,3 +321,23 @@ Therefore, the current evidence supports a stronger interpretation of the
 warm-start mechanism: SFT improves rollout quality and provides a compatible
 reference policy for GiGPO, allowing RL to build on the imitation prior rather
 than fight against it.
+
+## Appendix: System Bottleneck Analysis
+
+The 128/64 timing logs show that WebShop Agentic RL is not dominated by actor
+update time. Normal training steps take roughly 21-25 seconds, and actor update
+accounts for only about 30-32% of a normal step. Validation steps are much more
+expensive: final validation steps take roughly 337-437 seconds, and
+`timing_s/testing` accounts for about 94% of the step time.
+
+This suggests that future engineering work should optimize rollout and
+environment interaction rather than only model update. A natural follow-up
+project is WebShop rollout profiling and acceleration: per-env-step latency
+logging, observation caching, batched environment stepping, and eventually a
+semi-async rollout collector.
+
+Detailed timing tables are available in:
+
+```text
+reports/analysis/system_bottleneck_analysis.md
+```
