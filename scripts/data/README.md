@@ -47,6 +47,27 @@ assistant message to:
 <action>{target_action}</action>
 ```
 
+Build the multi-turn verl-aligned variant:
+
+```bash
+bash scripts/data/build_webshop_sft_multiturn_verl.sh
+```
+
+This writes:
+
+```text
+data/processed/sft_step_level_verl_multiturn/train.jsonl
+data/processed/sft_step_level_verl_multiturn/valid.jsonl
+data/processed/sft_step_level_verl_multiturn/stats.json
+```
+
+The multi-turn variant still uses the same verl-style user prompt at each step,
+but stores trajectory-prefix messages as alternating user/assistant turns. This
+lets the SFT trainer supervise assistant turns in a chat history instead of only
+a single isolated step. In this first version the `<think>` span is still empty;
+DeepSeek-generated reasoning can be added later as a separate data-generation
+step.
+
 Outputs:
 
 ```text

@@ -153,16 +153,50 @@ def make_verl_prompt(
     )
 
 
-def format_assistant_target(action: str, target_format: str) -> str:
+def format_assistant_target(action: str, target_format: str, think_text: str = "") -> str:
     if target_format == "action":
         return action
     if target_format == "verl":
-        return f"<think></think>\n<action>{action}</action>"
+        return f"<think>{think_text}</think>\n<action>{action}</action>"
     raise ValueError(f"Unsupported target_format: {target_format}")
 
 
-def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any]]:
-    with input_path.open("r", encoding="utf-8") as f:
+def make_multiturn_messages(
+    instruction: str,
+    states: list[str],
+    actions: list[str],
+    available_actions: Any,
+    step_id: int,
+    target_format: str,
+) -> list[dict[str, str]]:
+    messages = []
+    for turn_id in range(step_id + 1):
+        target_action = str(actions[turn_id]).strip()
+        observation = str(states[turn_id]).strip()
+        step_available_actions = available_actions[turn_id] if turn_id < len(available_actions) else []
+        normalized_available_actions = infer_available_actions(
+            observation,
+            step_available_actions,
+            target_action,
+        )
+        # Keep the same single-turn verl prompt at each turn. This preserves
+        # compatibility with the RL prompt format while allowing the chat
+        # template to expose previous assistant actions as conversation history.
+        prompt = make_verl_prompt(
+            instruction,
+            states,
+            actions,
+            turn_id,
+            observation,
+            normalized_available_actions,
+        )
+        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "assistant", "content": format_assistant_target(target_action, target_format)})
+    return messages
+
+
+def iter_samples(input_path: Path, target_format: str, conversation_mode: str) -> Iterable[dict[str, Any]]:
+    with input_path.open("r", encoding="utf-8-sig") as f:
         for traj_id, line in enumerate(f):
             if not line.strip():
                 continue
@@ -201,8 +235,25 @@ def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any
                     )
                 else:
                     prompt = make_prompt(instruction, history, observation)
-                sample_id = f"traj_{traj_id:05d}_step_{step_id:03d}"
                 assistant_target = format_assistant_target(target_action, target_format)
+                if conversation_mode == "single_turn":
+                    messages = [
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": assistant_target},
+                    ]
+                elif conversation_mode == "multi_turn":
+                    messages = make_multiturn_messages(
+                        instruction,
+                        states,
+                        actions,
+                        available_actions,
+                        step_id,
+                        target_format,
+                    )
+                else:
+                    raise ValueError(f"Unsupported conversation_mode: {conversation_mode}")
+
+                sample_id = f"traj_{traj_id:05d}_step_{step_id:03d}"
 
                 yield {
                     "sample_id": sample_id,
@@ -216,12 +267,11 @@ def iter_samples(input_path: Path, target_format: str) -> Iterable[dict[str, Any
                     "raw_action": str(raw_actions[step_id]).strip() if step_id < len(raw_actions) else target_action,
                     "action_type": action_type(target_action),
                     "target_format": target_format,
+                    "conversation_mode": conversation_mode,
                     "assistant_target": assistant_target,
                     "prompt": prompt,
-                    "messages": [
-                        {"role": "user", "content": prompt},
-                        {"role": "assistant", "content": assistant_target},
-                    ],
+                    "messages": messages,
+                    "message_turns": len(messages),
                     "source": "webshop_human_demo_il_trajs_finalized_images",
                 }
 
@@ -293,6 +343,12 @@ def main() -> None:
         default="action",
         help="assistant target format: raw action only, or verl <think>/<action> wrapper.",
     )
+    parser.add_argument(
+        "--conversation-mode",
+        choices=["single_turn", "multi_turn"],
+        default="single_turn",
+        help="single-turn step imitation or multi-turn trajectory-prefix chat samples.",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -303,7 +359,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     samples = []
-    for sample in iter_samples(input_path, args.target_format):
+    for sample in iter_samples(input_path, args.target_format, args.conversation_mode):
         samples.append(sample)
         if args.max_samples and len(samples) >= args.max_samples:
             break
@@ -321,6 +377,7 @@ def main() -> None:
         "valid_ratio": args.valid_ratio,
         "split_by": args.split_by,
         "target_format": args.target_format,
+        "conversation_mode": args.conversation_mode,
         "seed": args.seed,
         "trajectory_count": len({s["trajectory_id"] for s in samples}),
         "train_trajectory_count": len({s["trajectory_id"] for s in train}),
@@ -330,6 +387,7 @@ def main() -> None:
         ),
         "action_type_counts": dict(Counter(s["action_type"] for s in samples).most_common()),
         "avg_history_len": sum(len(s["history"]) for s in samples) / max(1, len(samples)),
+        "avg_message_turns": sum(int(s["message_turns"]) for s in samples) / max(1, len(samples)),
         "avg_observation_chars": sum(len(s["observation"]) for s in samples) / max(1, len(samples)),
         "avg_target_action_chars": sum(len(s["target_action"]) for s in samples) / max(1, len(samples)),
     }

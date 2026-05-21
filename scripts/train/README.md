@@ -81,3 +81,55 @@ Expected outputs:
 outputs/sft/qwen25_1p5b_webshop_lora_verl_500/
 outputs/sft/qwen25_1p5b_webshop_lora_verl_2k/
 ```
+
+## Multi-turn verl-aligned SFT
+
+This is the first follow-up experiment for testing whether trajectory-prefix
+chat SFT gives a better warm-start than the current isolated single-step SFT.
+It keeps the same empty-think target format:
+
+```text
+<think></think>
+<action>{target_action}</action>
+```
+
+but each row can contain multiple user/assistant turns up to the current
+trajectory step. The SFT trainer now masks non-assistant tokens and supervises
+assistant turns for both two-turn and multi-turn rows.
+
+Build and validate the multi-turn data:
+
+```bash
+bash scripts/data/build_webshop_sft_multiturn_verl.sh
+```
+
+Run the 500-sample multi-turn SFT:
+
+```bash
+mkdir -p logs/train
+
+bash scripts/train/run_qwen15b_lora_sft_verl_multiturn_500.sh \
+  2>&1 | tee logs/train/qwen15b_lora_sft_verl_multiturn_500_$(date +%Y%m%d_%H%M%S).log
+```
+
+Merge the adapter:
+
+```bash
+bash scripts/train/merge_sft_multiturn_adapters.sh \
+  2>&1 | tee logs/train/merge_sft_multiturn_adapters_$(date +%Y%m%d_%H%M%S).log
+```
+
+Then run SFT-only eval64 and SFT+GiGPO 128/64:
+
+```bash
+mkdir -p logs/eval logs/rl
+
+bash scripts/eval/run_qwen15b_sft_multiturn500_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_sft_multiturn500_eval64_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/rl/run_qwen15b_sft_multiturn500_gigpo_128_64.sh \
+  2>&1 | tee logs/rl/qwen15b_sft_multiturn500_gigpo_128_64_$(date +%Y%m%d_%H%M%S).log
+```
+
+Compare against the existing single-turn SFT-500 results before scaling to 2k
+or adding generated reasoning inside `<think>`.

@@ -17,7 +17,7 @@ ACTION_RE = re.compile(r"^\s*(search|click|choose|buy)\[[^\[\]]+\]\s*$", re.IGNO
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     rows = []
-    with path.open("r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8-sig") as f:
         for line_no, line in enumerate(f, 1):
             if not line.strip():
                 continue
@@ -56,6 +56,7 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
     traj_ids = set()
     sample_ids = set()
     prompt_lens = []
+    message_turns = []
     obs_lens = []
     action_lens = []
     history_lens = []
@@ -86,13 +87,17 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
             warnings.append(f"{split}:{sample_id}: suspicious action format: {target_action!r}")
 
         messages = row["messages"]
-        if not isinstance(messages, list) or len(messages) != 2:
-            errors.append(f"{split}:{sample_id}: messages must be a 2-item list")
+        if not isinstance(messages, list) or len(messages) < 2 or len(messages) % 2 != 0:
+            errors.append(f"{split}:{sample_id}: messages must be an even-length user/assistant list")
         else:
-            if messages[0].get("role") != "user" or messages[1].get("role") != "assistant":
-                errors.append(f"{split}:{sample_id}: messages roles should be user/assistant")
-            if messages[1].get("content") != assistant_target:
-                errors.append(f"{split}:{sample_id}: assistant message does not equal assistant_target")
+            for turn_idx, message in enumerate(messages):
+                expected_role = "user" if turn_idx % 2 == 0 else "assistant"
+                if message.get("role") != expected_role:
+                    errors.append(
+                        f"{split}:{sample_id}: message {turn_idx} role should be {expected_role}"
+                    )
+            if messages[-1].get("content") != assistant_target:
+                errors.append(f"{split}:{sample_id}: final assistant message does not equal assistant_target")
 
         target_format = row.get("target_format", "action")
         if target_format == "verl":
@@ -110,6 +115,7 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
 
         action_types.update([str(row["action_type"])])
         prompt_lens.append(len(str(row["prompt"])))
+        message_turns.append(len(messages) if isinstance(messages, list) else 0)
         obs_lens.append(len(str(row["observation"])))
         action_lens.append(len(target_action))
         history_lens.append(len(row["history"]) if isinstance(row["history"], list) else 0)
@@ -132,6 +138,11 @@ def validate_rows(rows: list[dict[str, Any]], split: str, max_examples: int) -> 
         "history_len: "
         f"mean={mean(history_lens):.1f} p50={pct(history_lens, 0.5)} "
         f"p90={pct(history_lens, 0.9)} max={max(history_lens) if history_lens else 0}"
+    )
+    print(
+        "message_turns: "
+        f"mean={mean(message_turns):.1f} p50={pct(message_turns, 0.5)} "
+        f"p90={pct(message_turns, 0.9)} max={max(message_turns) if message_turns else 0}"
     )
     print(
         "target_action_chars: "
