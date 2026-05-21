@@ -193,6 +193,8 @@ def save_sample_preview(
                 "assistant_target": row.get("assistant_target"),
                 "target_format": row.get("target_format"),
                 "conversation_mode": row.get("conversation_mode"),
+                "multiturn_history_window": row.get("multiturn_history_window"),
+                "history_assistant": row.get("history_assistant"),
                 "message_turns": len(row.get("messages") or []),
                 "action_type": row.get("action_type"),
             }

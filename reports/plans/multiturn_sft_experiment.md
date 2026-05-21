@@ -15,17 +15,23 @@ different from the base Qwen model, which often emits longer reasoning. This
 weakens the interpretation of the KL reference ablation because the base
 reference and SFT policy differ in both task behavior and output style.
 
-The first follow-up is a multi-turn SFT variant. It keeps the same empty-think
-target for now, but stores trajectory prefixes as alternating user/assistant
-messages. This tests whether exposing previous assistant actions through the
-chat template improves the WebShop warm-start compared with isolated single-step
-SFT.
+The first follow-up is a bounded multi-turn SFT variant. It keeps the same
+empty-think target for the current turn, but stores a short trajectory prefix as
+alternating user/assistant messages. Historical assistant turns keep only the
+final action, not `<think>`.
+
+This follows the train-inference consistency principle: at inference time, the
+agent should not rely on hidden reasoning from previous turns unless the runtime
+also preserves that reasoning in context. It also avoids sequence-length
+explosion from repeatedly nesting long WebShop prompts.
 
 ## Implemented Changes
 
 - `scripts/data/build_webshop_sft_dataset.py`
   - new `--conversation-mode {single_turn,multi_turn}`
-  - multi-turn mode emits trajectory-prefix `messages`
+  - multi-turn mode emits bounded trajectory-prefix `messages`
+  - new `--multiturn-history-window`, default `2`
+  - new `--history-assistant`, default `action_only`
   - existing single-turn output remains the default
 - `scripts/train/sft_lora.py`
   - supports arbitrary multi-turn `messages`
@@ -50,7 +56,7 @@ Compare against existing SFT-500:
 | Variant | SFT data | Think target | SFT size | Eval |
 |---|---|---|---:|---|
 | baseline | single-turn step-level | empty | 500 | SFT-only eval64 + GiGPO 128/64 |
-| candidate | multi-turn trajectory-prefix | empty | 500 | SFT-only eval64 + GiGPO 128/64 |
+| candidate | bounded multi-turn, history action-only | empty current turn | 500 | SFT-only eval64 + GiGPO 128/64 |
 
 Primary metrics:
 
@@ -94,11 +100,12 @@ bash scripts/rl/run_qwen15b_sft_multiturn500_gigpo_128_64.sh \
 
 ## Interpretation
 
-If multi-turn SFT-500 beats single-turn SFT-500 after GiGPO, then trajectory
-context is useful even without generated reasoning.
+If bounded multi-turn SFT-500 beats single-turn SFT-500 after GiGPO, then
+short trajectory context is useful even without generated reasoning.
 
-If multi-turn SFT-500 is similar or worse, the next better experiment is not
-more empty-think multi-turn data. It is generated reasoning:
+If bounded multi-turn SFT-500 is similar or worse, the next better experiment
+is not more empty-think multi-turn data. It is generated reasoning for the
+current turn:
 
 ```text
 <think>{DeepSeek-generated step reasoning}</think>
@@ -107,3 +114,7 @@ more empty-think multi-turn data. It is generated reasoning:
 
 That would test whether reasoning supervision, not merely chat history, is the
 missing ingredient.
+
+Historical generated reasoning should not be kept by default. It would create a
+train/inference mismatch unless the inference template also preserves historical
+thinking.

@@ -12,7 +12,9 @@ python scripts/data/build_webshop_sft_dataset.py \
   --seed 42 \
   --split-by trajectory \
   --target-format verl \
-  --conversation-mode multi_turn
+  --conversation-mode multi_turn \
+  --multiturn-history-window 2 \
+  --history-assistant action_only
 
 python scripts/data/validate_webshop_sft_dataset.py \
   --train data/processed/sft_step_level_verl_multiturn/train.jsonl \

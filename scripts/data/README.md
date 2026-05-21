@@ -62,11 +62,25 @@ data/processed/sft_step_level_verl_multiturn/stats.json
 ```
 
 The multi-turn variant still uses the same verl-style user prompt at each step,
-but stores trajectory-prefix messages as alternating user/assistant turns. This
-lets the SFT trainer supervise assistant turns in a chat history instead of only
-a single isolated step. In this first version the `<think>` span is still empty;
-DeepSeek-generated reasoning can be added later as a separate data-generation
-step.
+but stores recent trajectory-prefix messages as alternating user/assistant
+turns. To avoid train/inference mismatch and context blow-up, the default keeps
+only the most recent 2 previous turns and stores historical assistant turns as
+action-only:
+
+```text
+<action>{previous_action}</action>
+```
+
+The current assistant target remains:
+
+```text
+<think></think>
+<action>{target_action}</action>
+```
+
+This is intentionally conservative. DeepSeek-generated reasoning can be added
+later for the current turn, while historical turns should still drop `<think>`
+unless inference also keeps historical thinking in context.
 
 Outputs:
 

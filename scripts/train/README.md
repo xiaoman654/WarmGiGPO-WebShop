@@ -84,18 +84,27 @@ outputs/sft/qwen25_1p5b_webshop_lora_verl_2k/
 
 ## Multi-turn verl-aligned SFT
 
-This is the first follow-up experiment for testing whether trajectory-prefix
-chat SFT gives a better warm-start than the current isolated single-step SFT.
-It keeps the same empty-think target format:
+This is the first follow-up experiment for testing whether a limited
+trajectory-prefix chat history gives a better warm-start than the current
+isolated single-step SFT. It keeps the same empty-think target format for the
+current turn:
 
 ```text
 <think></think>
 <action>{target_action}</action>
 ```
 
-but each row can contain multiple user/assistant turns up to the current
-trajectory step. The SFT trainer now masks non-assistant tokens and supervises
-assistant turns for both two-turn and multi-turn rows.
+Historical assistant turns are stored as action-only by default:
+
+```text
+<action>{previous_action}</action>
+```
+
+Each row keeps at most the most recent 2 previous turns before the current
+trajectory step. This avoids putting historical thinking into the model input
+and prevents trajectory-prefix prompts from exploding in length. The SFT trainer
+now masks non-assistant tokens and supervises assistant turns for both two-turn
+and multi-turn rows.
 
 Build and validate the multi-turn data:
 

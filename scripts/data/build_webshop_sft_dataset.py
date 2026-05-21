@@ -161,6 +161,16 @@ def format_assistant_target(action: str, target_format: str, think_text: str = "
     raise ValueError(f"Unsupported target_format: {target_format}")
 
 
+def format_history_assistant_target(action: str, target_format: str, history_assistant: str) -> str:
+    if history_assistant == "full":
+        return format_assistant_target(action, target_format)
+    if history_assistant == "action_only":
+        if target_format == "verl":
+            return f"<action>{action}</action>"
+        return action
+    raise ValueError(f"Unsupported history_assistant: {history_assistant}")
+
+
 def make_multiturn_messages(
     instruction: str,
     states: list[str],
@@ -168,9 +178,12 @@ def make_multiturn_messages(
     available_actions: Any,
     step_id: int,
     target_format: str,
+    history_window: int,
+    history_assistant: str,
 ) -> list[dict[str, str]]:
     messages = []
-    for turn_id in range(step_id + 1):
+    start_turn = max(0, step_id - history_window)
+    for turn_id in range(start_turn, step_id + 1):
         target_action = str(actions[turn_id]).strip()
         observation = str(states[turn_id]).strip()
         step_available_actions = available_actions[turn_id] if turn_id < len(available_actions) else []
@@ -191,11 +204,25 @@ def make_multiturn_messages(
             normalized_available_actions,
         )
         messages.append({"role": "user", "content": prompt})
-        messages.append({"role": "assistant", "content": format_assistant_target(target_action, target_format)})
+        if turn_id < step_id:
+            assistant_content = format_history_assistant_target(
+                target_action,
+                target_format,
+                history_assistant,
+            )
+        else:
+            assistant_content = format_assistant_target(target_action, target_format)
+        messages.append({"role": "assistant", "content": assistant_content})
     return messages
 
 
-def iter_samples(input_path: Path, target_format: str, conversation_mode: str) -> Iterable[dict[str, Any]]:
+def iter_samples(
+    input_path: Path,
+    target_format: str,
+    conversation_mode: str,
+    multiturn_history_window: int,
+    history_assistant: str,
+) -> Iterable[dict[str, Any]]:
     with input_path.open("r", encoding="utf-8-sig") as f:
         for traj_id, line in enumerate(f):
             if not line.strip():
@@ -249,6 +276,8 @@ def iter_samples(input_path: Path, target_format: str, conversation_mode: str) -
                         available_actions,
                         step_id,
                         target_format,
+                        multiturn_history_window,
+                        history_assistant,
                     )
                 else:
                     raise ValueError(f"Unsupported conversation_mode: {conversation_mode}")
@@ -268,6 +297,8 @@ def iter_samples(input_path: Path, target_format: str, conversation_mode: str) -
                     "action_type": action_type(target_action),
                     "target_format": target_format,
                     "conversation_mode": conversation_mode,
+                    "multiturn_history_window": multiturn_history_window,
+                    "history_assistant": history_assistant,
                     "assistant_target": assistant_target,
                     "prompt": prompt,
                     "messages": messages,
@@ -349,6 +380,18 @@ def main() -> None:
         default="single_turn",
         help="single-turn step imitation or multi-turn trajectory-prefix chat samples.",
     )
+    parser.add_argument(
+        "--multiturn-history-window",
+        type=int,
+        default=2,
+        help="For multi_turn mode, keep only this many previous turns before the current step.",
+    )
+    parser.add_argument(
+        "--history-assistant",
+        choices=["action_only", "full"],
+        default="action_only",
+        help="For multi_turn mode, keep previous assistant turns as action-only or full think/action.",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -359,7 +402,13 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     samples = []
-    for sample in iter_samples(input_path, args.target_format, args.conversation_mode):
+    for sample in iter_samples(
+        input_path,
+        args.target_format,
+        args.conversation_mode,
+        args.multiturn_history_window,
+        args.history_assistant,
+    ):
         samples.append(sample)
         if args.max_samples and len(samples) >= args.max_samples:
             break
@@ -378,6 +427,8 @@ def main() -> None:
         "split_by": args.split_by,
         "target_format": args.target_format,
         "conversation_mode": args.conversation_mode,
+        "multiturn_history_window": args.multiturn_history_window,
+        "history_assistant": args.history_assistant,
         "seed": args.seed,
         "trajectory_count": len({s["trajectory_id"] for s in samples}),
         "train_trajectory_count": len({s["trajectory_id"] for s in train}),
