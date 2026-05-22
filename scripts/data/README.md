@@ -103,7 +103,7 @@ and run:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, thinking enabled, reasoning_effort high.
+# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=1024, temperature=0.1.
 # Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Optional smoke test first.
@@ -114,7 +114,12 @@ bash scripts/data/generate_webshop_deepseek_think_500.sh
 ```
 
 The generator is resumable: existing `sample_id`s in the response JSONL are
-skipped unless `--overwrite` is passed to the underlying Python script.
+skipped unless `--overwrite` is passed to the underlying Python script. Empty
+or truncated responses are treated as invalid and will be regenerated on the
+next run. For this visible-reasoning data generation task, the wrapper omits
+DeepSeek's hidden `thinking` field by default; enabling hidden thinking can
+consume output budget and make the final JSON more likely to be empty or
+truncated.
 
 Then build the SFT data:
 

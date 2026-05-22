@@ -46,6 +46,17 @@ def parse_json_text(text: str) -> dict[str, Any] | None:
 
 
 def extract_reasoning(row: dict[str, Any]) -> str:
+    raw_content = row.get("raw_content")
+    if isinstance(raw_content, str) and raw_content.strip():
+        parsed = parse_json_text(raw_content)
+        if parsed:
+            nested = extract_reasoning(parsed)
+            if nested:
+                return nested
+        match = THINK_RE.search(raw_content)
+        if match:
+            return match.group(1).strip()
+
     for key in ("think", "reasoning", "generated_think", "content", "response", "text"):
         value = row.get(key)
         if isinstance(value, str) and value.strip():
@@ -55,6 +66,8 @@ def extract_reasoning(row: dict[str, Any]) -> str:
                 nested = extract_reasoning(parsed)
                 if nested:
                     return nested
+            if text.startswith("{"):
+                continue
             match = THINK_RE.search(text)
             if match:
                 return match.group(1).strip()

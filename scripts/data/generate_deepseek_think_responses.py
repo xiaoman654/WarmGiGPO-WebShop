@@ -35,7 +35,7 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
         f.flush()
 
 
-def load_done_sample_ids(path: Path) -> set[str]:
+def load_done_sample_ids(path: Path, min_think_chars: int, require_chosen_action: bool) -> set[str]:
     if not path.exists():
         return set()
     done = set()
@@ -48,7 +48,7 @@ def load_done_sample_ids(path: Path) -> set[str]:
             except json.JSONDecodeError:
                 continue
             sample_id = str(row.get("sample_id", "")).strip()
-            if sample_id:
+            if sample_id and is_valid_response(row, min_think_chars, require_chosen_action):
                 done.add(sample_id)
     return done
 
@@ -72,7 +72,9 @@ def extract_action(text: str) -> str:
     return match.group(0).strip() if match else ""
 
 
-def normalize_response(sample_id: str, content: str, model: str) -> dict[str, Any]:
+def normalize_response(sample_id: str, message: dict[str, Any], model: str) -> dict[str, Any]:
+    content = str(message.get("content") or "")
+    reasoning_content = str(message.get("reasoning_content") or "")
     parsed = parse_json_text(content) or {}
     think = parsed.get("think") or parsed.get("reasoning") or parsed.get("generated_think") or ""
     chosen_action = parsed.get("chosen_action") or parsed.get("action") or parsed.get("final_action") or ""
@@ -80,7 +82,7 @@ def normalize_response(sample_id: str, content: str, model: str) -> dict[str, An
         think = str(think)
     if not isinstance(chosen_action, str):
         chosen_action = str(chosen_action)
-    if not think.strip():
+    if not think.strip() and content.strip() and not content.lstrip().startswith("{"):
         think = content.strip()
     chosen_action = extract_action(chosen_action) or extract_action(content)
     return {
@@ -89,7 +91,20 @@ def normalize_response(sample_id: str, content: str, model: str) -> dict[str, An
         "chosen_action": chosen_action.strip(),
         "model": model,
         "raw_content": content,
+        "raw_reasoning_content": reasoning_content,
     }
+
+
+def is_valid_response(row: dict[str, Any], min_think_chars: int, require_chosen_action: bool) -> bool:
+    think = str(row.get("think") or "").strip()
+    chosen_action = str(row.get("chosen_action") or "").strip()
+    if len(think) < min_think_chars:
+        return False
+    if think.lstrip().startswith("{"):
+        return False
+    if require_chosen_action and not chosen_action:
+        return False
+    return True
 
 
 def call_chat_completion(
@@ -102,7 +117,7 @@ def call_chat_completion(
     thinking: str,
     reasoning_effort: str,
     timeout: int,
-) -> str:
+) -> dict[str, Any]:
     url = api_base.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
@@ -136,7 +151,8 @@ def call_chat_completion(
     with urllib.request.urlopen(request, timeout=timeout) as response:
         body = response.read().decode("utf-8")
     parsed = json.loads(body)
-    return parsed["choices"][0]["message"]["content"]
+    message = parsed["choices"][0]["message"]
+    return message if isinstance(message, dict) else {"content": str(message)}
 
 
 def main() -> None:
@@ -148,19 +164,25 @@ def main() -> None:
     parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"))
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--max-tokens", type=int, default=256)
+    parser.add_argument("--temperature", type=float, default=0.1)
+    parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument(
         "--thinking",
         choices=("enabled", "disabled", "none"),
-        default=os.environ.get("DEEPSEEK_THINKING", "enabled"),
+        default=os.environ.get("DEEPSEEK_THINKING", "none"),
         help="DeepSeek thinking mode. Use 'none' to omit the thinking field from the request.",
     )
     parser.add_argument(
         "--reasoning-effort",
         choices=("low", "medium", "high", "none"),
-        default=os.environ.get("DEEPSEEK_REASONING_EFFORT", "high"),
+        default=os.environ.get("DEEPSEEK_REASONING_EFFORT", "none"),
         help="DeepSeek reasoning effort. Use 'none' to omit the field from the request.",
+    )
+    parser.add_argument("--min-think-chars", type=int, default=20)
+    parser.add_argument(
+        "--allow-empty-chosen-action",
+        action="store_true",
+        help="Accept rows whose response has no parseable chosen_action.",
     )
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--retries", type=int, default=3)
@@ -179,7 +201,8 @@ def main() -> None:
         requests = requests[: args.max_samples]
 
     output = Path(args.output)
-    done = set() if args.overwrite else load_done_sample_ids(output)
+    require_chosen_action = not args.allow_empty_chosen_action
+    done = set() if args.overwrite else load_done_sample_ids(output, args.min_think_chars, require_chosen_action)
     if args.overwrite and output.exists():
         output.unlink()
 
@@ -199,7 +222,7 @@ def main() -> None:
         last_error: Exception | None = None
         for attempt in range(1, args.retries + 1):
             try:
-                content = call_chat_completion(
+                message = call_chat_completion(
                     api_base=args.api_base,
                     api_key=api_key,
                     model=args.model,
@@ -210,14 +233,21 @@ def main() -> None:
                     reasoning_effort=args.reasoning_effort,
                     timeout=args.timeout,
                 )
-                out_row = normalize_response(sample_id, content, args.model)
+                out_row = normalize_response(sample_id, message, args.model)
+                if not is_valid_response(out_row, args.min_think_chars, require_chosen_action):
+                    raise ValueError(
+                        "invalid response: "
+                        f"think_chars={len(out_row.get('think') or '')}, "
+                        f"chosen_action={out_row.get('chosen_action')!r}, "
+                        f"raw_content_prefix={str(out_row.get('raw_content') or '')[:80]!r}"
+                    )
                 append_jsonl(output, out_row)
                 done.add(sample_id)
                 generated += 1
                 print(f"[{idx}/{total}] generated {sample_id}", flush=True)
                 time.sleep(args.sleep)
                 break
-            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_error = exc
                 wait_s = min(30.0, 2.0**attempt)
                 print(
