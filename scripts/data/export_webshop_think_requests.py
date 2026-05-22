@@ -25,25 +25,44 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def make_generation_prompt(row: dict[str, Any], max_words: int) -> str:
+def format_actions(actions: Any) -> str:
+    if not isinstance(actions, list):
+        return str(actions)
+    lines = []
+    for idx, action in enumerate(actions, 1):
+        lines.append(f"{idx}. {action}")
+    return "\n".join(lines)
+
+
+def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_action: bool) -> str:
     history = row.get("history") or []
     available_actions = row.get("available_actions") or []
-    return (
-        "You are generating a concise reasoning trace for a WebShop shopping agent.\n"
-        "Use only the given task, action history, current observation, admissible actions, "
-        "and demonstrated next action.\n"
+    base = (
+        "You are a WebShop shopping agent deciding the next action.\n"
+        "Based only on the task, previous actions, current observation, and admissible actions, "
+        "write concise reasoning for what to do next.\n"
         "Do not invent product details that are not visible in the observation.\n"
-        "Do not mention that the demonstrated action is a label or ground truth.\n"
         f"Write no more than {max_words} words.\n\n"
         f"Task:\n{row.get('instruction', '')}\n\n"
         "Previous actions:\n"
         f"{json.dumps(history, ensure_ascii=False)}\n\n"
         f"Current observation:\n{row.get('observation', '')}\n\n"
         "Admissible actions:\n"
-        f"{json.dumps(available_actions, ensure_ascii=False)}\n\n"
-        f"Chosen next action:\n{row.get('target_action', '')}\n\n"
-        "Reasoning:"
+        f"{format_actions(available_actions)}\n\n"
     )
+    if include_target_action:
+        base += (
+            "Demonstrated next action:\n"
+            f"{row.get('target_action', '')}\n\n"
+            "Explain why this action is reasonable. Do not mention labels, ground truth, or demonstrations.\n"
+        )
+    else:
+        base += (
+            "Return JSON with two fields:\n"
+            "- think: concise reasoning grounded in the observation\n"
+            "- chosen_action: the action you would take, copied exactly from the admissible actions if possible\n\n"
+        )
+    return base + "Response:"
 
 
 def main() -> None:
@@ -52,6 +71,11 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="Reasoning request JSONL.")
     parser.add_argument("--max-samples", type=int, default=500)
     parser.add_argument("--max-words", type=int, default=80)
+    parser.add_argument(
+        "--include-target-action",
+        action="store_true",
+        help="Include target_action in exported rows and prompt. Useful for rationalization, off by default.",
+    )
     parser.add_argument(
         "--start",
         type=int,
@@ -68,20 +92,20 @@ def main() -> None:
 
     requests = []
     for row in rows:
-        requests.append(
-            {
-                "sample_id": row.get("sample_id"),
-                "trajectory_id": row.get("trajectory_id"),
-                "step_id": row.get("step_id"),
-                "instruction": row.get("instruction"),
-                "history": row.get("history"),
-                "observation": row.get("observation"),
-                "available_actions": row.get("available_actions"),
-                "target_action": row.get("target_action"),
-                "conversation_mode": row.get("conversation_mode"),
-                "prompt": make_generation_prompt(row, args.max_words),
-            }
-        )
+        request = {
+            "sample_id": row.get("sample_id"),
+            "trajectory_id": row.get("trajectory_id"),
+            "step_id": row.get("step_id"),
+            "instruction": row.get("instruction"),
+            "history": row.get("history"),
+            "observation": row.get("observation"),
+            "available_actions": row.get("available_actions"),
+            "conversation_mode": row.get("conversation_mode"),
+            "prompt": make_generation_prompt(row, args.max_words, args.include_target_action),
+        }
+        if args.include_target_action:
+            request["target_action"] = row.get("target_action")
+        requests.append(request)
 
     write_jsonl(Path(args.output), requests)
     print(f"wrote requests: {args.output} rows={len(requests)}")

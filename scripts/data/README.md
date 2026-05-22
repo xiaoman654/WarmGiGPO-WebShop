@@ -105,6 +105,12 @@ bash scripts/data/build_webshop_sft_deepseek_think_500.sh
 See `reports/plans/deepseek_think_sft_experiment.md` for the full workflow and
 quality checks.
 
+The request exporter hides `target_action` by default to avoid answer leakage.
+It asks the external generator to return current-step reasoning plus an optional
+`chosen_action`. The merge step always keeps the human-demonstration
+`target_action` as the supervised `<action>` target, while recording whether the
+generated `chosen_action` matches it as a quality diagnostic.
+
 Outputs:
 
 ```text

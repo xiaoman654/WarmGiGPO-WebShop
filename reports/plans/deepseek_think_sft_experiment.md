@@ -53,11 +53,18 @@ Each row contains:
 - `history`
 - `observation`
 - `available_actions`
-- `target_action`
 - `prompt`
 
+By default, `target_action` is intentionally not exported and not included in
+the prompt. This avoids answer leakage: DeepSeek should simulate the current
+decision rather than rationalize a revealed label. A rationalization mode exists
+behind `--include-target-action`, but it is not the recommended setting for this
+experiment.
+
 Send `webshop_multiturn_500_requests.jsonl` to the generator. The response JSONL
-should preserve `sample_id` and include one of these fields:
+should preserve `sample_id`, include generated reasoning, and ideally include
+DeepSeek's own chosen action for quality checking. The merge script accepts
+reasoning from one of these fields:
 
 ```text
 think
@@ -73,9 +80,13 @@ Recommended output row:
 ```json
 {
   "sample_id": "traj_00001_step_002",
-  "think": "The current page shows the matching option, so selecting it advances toward purchase."
+  "think": "The current page shows the matching option, so selecting it advances toward purchase.",
+  "chosen_action": "click[option]"
 }
 ```
+
+If the generator returns the JSON object as a string under `content`,
+`response`, or `text`, the merge script will parse that as well.
 
 ### 3. Inspect before training
 
@@ -86,6 +97,8 @@ Before SFT, inspect 30-50 generated rows:
 - no invented product attributes
 - no mention of "ground truth", "label", or "target_action"
 - no `<action>` in the reasoning field
+- if `chosen_action` is present, it should usually match the supervised
+  `target_action`; the merge step reports match rates in `stats.json`
 
 ### 4. Merge generated think into SFT data
 
@@ -110,6 +123,9 @@ data/processed/sft_step_level_verl_deepseek_think_500/stats.json
 ```
 
 The merge uses `--require-all`, so only rows with generated think are kept.
+It still uses the human-demonstration `target_action` as the final SFT action.
+Generated `chosen_action` is recorded only as a data-quality signal unless
+`--require-action-match` is enabled manually.
 
 ### 5. Train and evaluate
 

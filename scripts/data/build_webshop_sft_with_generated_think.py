@@ -11,6 +11,8 @@ from typing import Any
 
 
 THINK_RE = re.compile(r"<think>(.*?)</think>", flags=re.DOTALL | re.IGNORECASE)
+ACTION_RE = re.compile(r"(search|click|choose|buy)\[[^\[\]]+\]", flags=re.IGNORECASE)
+FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", flags=re.DOTALL | re.IGNORECASE)
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -29,11 +31,30 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def parse_json_text(text: str) -> dict[str, Any] | None:
+    text = text.strip()
+    fenced = FENCED_JSON_RE.search(text)
+    if fenced:
+        text = fenced.group(1).strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def extract_reasoning(row: dict[str, Any]) -> str:
     for key in ("think", "reasoning", "generated_think", "content", "response", "text"):
         value = row.get(key)
         if isinstance(value, str) and value.strip():
             text = value.strip()
+            parsed = parse_json_text(text)
+            if parsed:
+                nested = extract_reasoning(parsed)
+                if nested:
+                    return nested
             match = THINK_RE.search(text)
             if match:
                 return match.group(1).strip()
@@ -47,6 +68,26 @@ def extract_reasoning(row: dict[str, Any]) -> str:
                 if match:
                     return match.group(1).strip()
                 return content.strip()
+    return ""
+
+
+def extract_chosen_action(row: dict[str, Any]) -> str:
+    for key in ("chosen_action", "action", "predicted_action", "final_action"):
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            match = ACTION_RE.search(value)
+            return match.group(0).strip() if match else value.strip()
+    for key in ("content", "response", "text"):
+        value = row.get(key)
+        if isinstance(value, str):
+            parsed = parse_json_text(value)
+            if parsed:
+                nested = extract_chosen_action(parsed)
+                if nested:
+                    return nested
+            match = ACTION_RE.search(value)
+            if match:
+                return match.group(0).strip()
     return ""
 
 
@@ -66,25 +107,36 @@ def format_assistant(action: str, think: str) -> str:
 def merge_rows(
     base_rows: list[dict[str, Any]],
     think_by_sample_id: dict[str, str],
+    chosen_by_sample_id: dict[str, str],
     max_chars: int,
     require_all: bool,
-) -> tuple[list[dict[str, Any]], list[str]]:
+    require_action_match: bool,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     merged = []
     missing = []
+    mismatched = []
     for row in base_rows:
         sample_id = str(row.get("sample_id"))
         think = think_by_sample_id.get(sample_id, "")
         think = clean_reasoning(think, max_chars)
+        chosen_action = chosen_by_sample_id.get(sample_id, "")
+        target_action = str(row.get("target_action", "")).strip()
         if not think:
             missing.append(sample_id)
             if require_all:
                 continue
             think = ""
+        if require_action_match and chosen_action and chosen_action.lower() != target_action.lower():
+            mismatched.append(sample_id)
+            continue
 
         new_row = dict(row)
         new_row["generated_think"] = think
         new_row["think_source"] = "external_generated"
-        new_row["assistant_target"] = format_assistant(str(row.get("target_action", "")), think)
+        if chosen_action:
+            new_row["generated_chosen_action"] = chosen_action
+            new_row["generated_action_matches_target"] = chosen_action.lower() == target_action.lower()
+        new_row["assistant_target"] = format_assistant(target_action, think)
 
         messages = list(row.get("messages") or [])
         if messages and isinstance(messages[-1], dict) and messages[-1].get("role") == "assistant":
@@ -97,7 +149,7 @@ def merge_rows(
             ]
         new_row["messages"] = messages
         merged.append(new_row)
-    return merged, missing
+    return merged, missing, mismatched
 
 
 def main() -> None:
@@ -112,27 +164,38 @@ def main() -> None:
         action="store_true",
         help="Drop rows without generated think instead of falling back to empty think.",
     )
+    parser.add_argument(
+        "--require-action-match",
+        action="store_true",
+        help="Drop rows whose generated chosen_action disagrees with target_action. Rows without chosen_action are kept.",
+    )
     args = parser.parse_args()
 
     think_rows = load_jsonl(Path(args.think_file))
     think_by_sample_id = {}
+    chosen_by_sample_id = {}
     for row in think_rows:
         sample_id = str(row.get("sample_id", "")).strip()
         if not sample_id:
             continue
         think_by_sample_id[sample_id] = extract_reasoning(row)
+        chosen_by_sample_id[sample_id] = extract_chosen_action(row)
 
-    train_rows, missing_train = merge_rows(
+    train_rows, missing_train, mismatch_train = merge_rows(
         load_jsonl(Path(args.base_train)),
         think_by_sample_id,
+        chosen_by_sample_id,
         args.max_think_chars,
         args.require_all,
+        args.require_action_match,
     )
-    valid_rows, missing_valid = merge_rows(
+    valid_rows, missing_valid, mismatch_valid = merge_rows(
         load_jsonl(Path(args.base_valid)),
         think_by_sample_id,
+        chosen_by_sample_id,
         args.max_think_chars,
         args.require_all,
+        args.require_action_match,
     )
 
     out_dir = Path(args.out_dir)
@@ -150,10 +213,21 @@ def main() -> None:
         "num_valid": len(valid_rows),
         "missing_train": len(missing_train),
         "missing_valid": len(missing_valid),
+        "action_mismatch_train": len(mismatch_train),
+        "action_mismatch_valid": len(mismatch_valid),
         "max_think_chars": args.max_think_chars,
         "require_all": args.require_all,
+        "require_action_match": args.require_action_match,
         "avg_train_think_chars": sum(len(r.get("generated_think", "")) for r in train_rows) / max(1, len(train_rows)),
         "avg_valid_think_chars": sum(len(r.get("generated_think", "")) for r in valid_rows) / max(1, len(valid_rows)),
+        "train_action_match_rate": sum(
+            1 for r in train_rows if r.get("generated_action_matches_target") is True
+        )
+        / max(1, sum(1 for r in train_rows if "generated_action_matches_target" in r)),
+        "valid_action_match_rate": sum(
+            1 for r in valid_rows if r.get("generated_action_matches_target") is True
+        )
+        / max(1, sum(1 for r in valid_rows if "generated_action_matches_target" in r)),
     }
     with (out_dir / "stats.json").open("w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2, ensure_ascii=False)
@@ -161,6 +235,11 @@ def main() -> None:
     if missing_train or missing_valid:
         with (out_dir / "missing_think_sample_ids.txt").open("w", encoding="utf-8") as f:
             for sample_id in missing_train + missing_valid:
+                f.write(sample_id + "\n")
+
+    if mismatch_train or mismatch_valid:
+        with (out_dir / "action_mismatch_sample_ids.txt").open("w", encoding="utf-8") as f:
+            for sample_id in mismatch_train + mismatch_valid:
                 f.write(sample_id + "\n")
 
     print(json.dumps(stats, indent=2, ensure_ascii=False))
