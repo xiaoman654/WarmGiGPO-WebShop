@@ -185,6 +185,22 @@ def build_payload(
     return payload
 
 
+def normalize_api_key(value: str | None, env_name: str) -> str:
+    api_key = (value or "").strip()
+    if not api_key:
+        raise SystemExit(f"Missing API key. Set {env_name}=...")
+    try:
+        api_key.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise SystemExit(
+            f"{env_name} contains non-ASCII/non-latin-1 characters and cannot be used in an HTTP Authorization header. "
+            "Make sure you exported the real DeepSeek API key, not a placeholder such as '你的key', and remove quotes or extra text."
+        ) from exc
+    if any(ch.isspace() for ch in api_key):
+        raise SystemExit(f"{env_name} contains whitespace. Re-export the key without spaces or newlines.")
+    return api_key
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Request JSONL from export_webshop_think_requests.py.")
@@ -229,9 +245,7 @@ def main() -> None:
     parser.add_argument("--overwrite", action="store_true", help="Ignore existing output and regenerate rows.")
     args = parser.parse_args()
 
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        raise SystemExit(f"Missing API key. Set {args.api_key_env}=...")
+    api_key = normalize_api_key(os.environ.get(args.api_key_env), args.api_key_env)
 
     requests = load_jsonl(Path(args.input))
     if args.start:
