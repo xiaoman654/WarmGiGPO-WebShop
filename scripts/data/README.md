@@ -96,7 +96,25 @@ data/processed/deepseek_think_requests/webshop_multiturn_500_responses.jsonl
 ```
 
 with generated reasoning keyed by `sample_id`, build the DeepSeek-think SFT
-data:
+data.
+
+If you want to generate the responses through the DeepSeek API, set an API key
+and run:
+
+```bash
+export DEEPSEEK_API_KEY=...
+
+# Optional smoke test first.
+MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh
+
+# Resume and finish the full request file.
+bash scripts/data/generate_webshop_deepseek_think_500.sh
+```
+
+The generator is resumable: existing `sample_id`s in the response JSONL are
+skipped unless `--overwrite` is passed to the underlying Python script.
+
+Then build the SFT data:
 
 ```bash
 bash scripts/data/build_webshop_sft_deepseek_think_500.sh

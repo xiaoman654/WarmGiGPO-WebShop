@@ -88,6 +88,26 @@ Recommended output row:
 If the generator returns the JSON object as a string under `content`,
 `response`, or `text`, the merge script will parse that as well.
 
+To call the DeepSeek API directly:
+
+```bash
+export DEEPSEEK_API_KEY=...
+
+# Generate a small quality-check slice first.
+MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh
+
+# Resume and finish all requests after inspection.
+bash scripts/data/generate_webshop_deepseek_think_500.sh
+```
+
+The API script writes to:
+
+```text
+data/processed/deepseek_think_requests/webshop_multiturn_500_responses.jsonl
+```
+
+It is resumable and skips existing `sample_id`s by default.
+
 ### 3. Inspect before training
 
 Before SFT, inspect 30-50 generated rows:
