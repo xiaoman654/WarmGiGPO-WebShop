@@ -38,14 +38,21 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
     history = row.get("history") or []
     available_actions = row.get("available_actions") or []
     base = (
-        "You are a WebShop shopping agent deciding the next action.\n"
-        "Based only on the task, previous actions, current observation, and admissible actions, "
-        "write concise reasoning for what to do next.\n"
-        "Do not invent product details that are not visible in the observation.\n"
-        f"Write no more than {max_words} words.\n\n"
+        "You are a WebShop shopping agent. You must decide the single best next action "
+        "based strictly on the information provided below.\n\n"
+        "Rules:\n"
+        "- Base your reasoning ONLY on the Task, Previous actions, Current observation, and Admissible actions.\n"
+        "- Never invent prices, sizes, colors, ratings, or product names that are not explicitly shown in the Current observation.\n"
+        "- Compare the task requirements against the current observation. If a product clearly does NOT match "
+        "(wrong category, wrong color, wrong size, price over budget), say so and choose a better action.\n"
+        "- If the current observation already shows a product that satisfies all task requirements AND a 'buy now' action is available, "
+        "recommend buying it.\n"
+        "- If previous actions show you have already tried searching similar terms without success, consider a different search strategy.\n"
+        "- The Previous actions list records what has already been done. Do not suggest repeating the very last action.\n"
+        f"- Your reasoning must be no more than {max_words} words.\n\n"
         f"Task:\n{row.get('instruction', '')}\n\n"
         "Previous actions:\n"
-        f"{json.dumps(history, ensure_ascii=False)}\n\n"
+        f"{json.dumps(history, ensure_ascii=False) if history else '(none)'}\n\n"
         f"Current observation:\n{row.get('observation', '')}\n\n"
         "Admissible actions:\n"
         f"{format_actions(available_actions)}\n\n"
@@ -58,11 +65,10 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
         )
     else:
         base += (
-            "Return JSON with two fields:\n"
-            "- think: concise reasoning grounded in the observation\n"
-            "- chosen_action: the action you would take, copied exactly from the admissible actions if possible\n\n"
+            "Think step-by-step about which action to take and why. Then output JSON:\n"
+            '{"think": "<your reasoning>", "chosen_action": "<exact action text from admissible actions>"}\n'
         )
-    return base + "Response:"
+    return base
 
 
 def main() -> None:
