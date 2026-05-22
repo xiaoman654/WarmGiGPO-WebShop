@@ -48,6 +48,7 @@ scripts/
   analysis/   Log parsing and report artifact generation
 
 reports/
+  FINAL_PROJECT_WRAPUP.md        Final conclusions, resume bullets, and interview talking points
   PROJECT_REPORT.md              Main stage report
   analysis/rl_results_analysis.md
   tables/                         Numeric experiment summaries
@@ -76,6 +77,7 @@ for experiment records.
 Start with:
 
 ```text
+reports/FINAL_PROJECT_WRAPUP.md
 reports/PROJECT_REPORT.md
 ```
 
@@ -95,4 +97,7 @@ reports/tables/rl_128_64_main_comparison.md
 
 The current evidence suggests that WebShop human-demo SFT provides a useful imitation prior for GiGPO. It improves the quality of rollout trajectories by making actions shorter, more valid, and less likely to be clipped. This cleaner rollout distribution appears to make GiGPO training more effective.
 
-Future extensions include SFT data-size ablations, KL reference ablations, and trajectory-level failure analysis.
+Completed follow-up experiments include SFT data-size ablation, KL reference ablation,
+system bottleneck profiling, and a DeepSeek target-think rationale distillation
+negative result. The current project is ready to close; future extensions should
+be treated as separate projects.

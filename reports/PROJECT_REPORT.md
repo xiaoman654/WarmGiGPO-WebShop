@@ -341,3 +341,79 @@ Detailed timing tables are available in:
 ```text
 reports/analysis/system_bottleneck_analysis.md
 ```
+
+## Appendix: DeepSeek Target-Think Negative Result
+
+As a follow-up to the empty-think / action-only SFT design, we tested whether
+teacher-generated current-step rationales could provide a better SFT warm-start.
+The target-conditioned setting used DeepSeek-v4-pro to generate a short grounded
+`<think>` rationale for the human-demonstration target action:
+
+```text
+<think>{DeepSeek target-conditioned rationale}</think>
+<action>{human demonstration target_action}</action>
+```
+
+This is different from the main SFT setting:
+
+```text
+<think></think>
+<action>{human demonstration target_action}</action>
+```
+
+The target-conditioned data pipeline was:
+
+1. Build bounded multi-turn WebShop SFT rows.
+2. Export DeepSeek requests with the current task, action history, current
+   observation, admissible actions, and target action.
+3. Generate short JSON rationales using DeepSeek-v4-pro.
+4. Merge only rows whose returned `chosen_action` matches the target action.
+5. Train LoRA SFT, merge the adapter, evaluate SFT-only, then run GiGPO 128/64.
+
+The constructed target-think set contained 499 train rows and 496 validation
+rows. Because multi-turn WebShop rows can become extremely long, the SFT script
+filtered rows whose chat-template-rendered text exceeded 30000 characters. The
+actual tokenized SFT set was:
+
+| Split | Candidate rows | Tokenized rows | Overlong filtered |
+|---|---:|---:|---:|
+| Train | 499 | 259 | 240 |
+| Valid | 496 | 268 | 228 |
+
+The final metrics were:
+
+| Method | val/text/test_score | success_rate | webshop_task_score |
+|---|---:|---:|---:|
+| DeepSeek target-think SFT-only | 0.0000 | 0.0000 | 0.0506 |
+| DeepSeek target-think SFT + GiGPO | 0.1262 | 0.0156 | 0.0537 |
+| Empty-think SFT-full + GiGPO | 3.2639 | 0.3281 | 0.5605 |
+
+This result does not support scaling the target-think direction in the current
+project. The likely causes are:
+
+1. Only 259 train rows remained after long-context filtering.
+2. Teacher rationales add natural-language tokens that may dilute action
+   imitation for a 1.5B model.
+3. WebShop human demonstrations provide action labels, not verified process
+   supervision, so generated rationales may not be a reliable training signal.
+4. The main bottleneck for the small model is stable WebShop action selection
+   and parser-aligned output, not verbose reasoning.
+
+The negative result strengthens the main conclusion: in this setting, the most
+effective SFT warm-start is action-centered empty-think supervision, and the
+core gain comes from using that WebShop-specific policy prior in GiGPO with a
+matched KL reference.
+
+## Final Project Status
+
+The experimental phase is complete. Further experiments such as think-no-loss,
+larger rationale distillation, or async rollout optimization are better treated
+as separate follow-up projects. The current project should be summarized around
+three final claims:
+
+1. SFT-only is not a strong WebShop policy, but it is a highly effective GiGPO
+   warm-start.
+2. The SFT checkpoint should also serve as the KL reference anchor; a base-model
+   reference creates a harmful policy-distribution mismatch.
+3. For Qwen2.5-1.5B on WebShop, action-only / empty-think SFT is more effective
+   than small-scale teacher rationale distillation.

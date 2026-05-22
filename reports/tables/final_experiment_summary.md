@@ -1,6 +1,6 @@
 # Final Experiment Summary
 
-Date: 2026-05-20  
+Date: 2026-05-22  
 Model: Qwen2.5-1.5B-Instruct  
 Environment: WebShop  
 Main RL setting: train128/eval64, max_steps=5, env.rollout.n=2, 32 training steps  
@@ -16,6 +16,8 @@ This table collects the main completed experiments into one report-ready view.
 | SFT-2k + GiGPO | SFT-2k | SFT-2k | 2000 | 1.0309 | 0.1094 | 0.3129 | 1.000 | 21.429 | 0.000 | More SFT data gives a useful WebShop prior. |
 | SFT-full + GiGPO | SFT-full | SFT-full | full | 3.2639 | 0.3281 | 0.5605 | 1.000 | 21.919 | 0.000 | Strongest setting; SFT improves rollout quality and RL learning. |
 | SFT-full + GiGPO, ref=base | SFT-full | Base Qwen | full | 0.0000 | 0.0000 | 0.0000 | 1.000 | 23.838 | 0.000 | Mismatched base reference destroys the SFT warm-start gain. |
+| DeepSeek target-think SFT-only | Target-think SFT | N/A | 259 filtered train rows | 0.0000 | 0.0000 | 0.0506 | N/A | N/A | N/A | Teacher rationale distillation did not improve SFT-only behavior. |
+| DeepSeek target-think SFT + GiGPO | Target-think SFT | Target-think SFT | 259 filtered train rows | 0.1262 | 0.0156 | 0.0537 | N/A | N/A | N/A | Target-conditioned rationale did not recover the action-only SFT warm-start gains. |
 
 ## Main Takeaways
 
@@ -28,3 +30,7 @@ This table collects the main completed experiments into one report-ready view.
 4. The KL reference matters. Using the original base model as reference with an
    SFT-initialized actor collapses final validation to zero, suggesting that
    the SFT checkpoint is also the correct policy anchor.
+5. DeepSeek target-conditioned rationale distillation was tested as a follow-up
+   SFT variant, but it did not improve SFT-only or SFT+GiGPO performance. Under
+   the current small-model, small-data, and long-context-filtered setting,
+   action-only / empty-think SFT remains the most effective warm-start.

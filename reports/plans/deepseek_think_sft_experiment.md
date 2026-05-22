@@ -233,3 +233,38 @@ bash scripts/train/merge_sft_deepseek_target_think_adapter.sh
 bash scripts/eval/run_qwen15b_sft_deepseektargetthink500_eval64.sh
 bash scripts/rl/run_qwen15b_sft_deepseektargetthink500_gigpo_128_64.sh
 ```
+
+## Final Outcome
+
+The target-conditioned follow-up has been completed and should be treated as a
+negative result rather than a new main line.
+
+Data and training size:
+
+| Split | Candidate rows | Tokenized rows | Overlong filtered |
+|---|---:|---:|---:|
+| Train | 499 | 259 | 240 |
+| Valid | 496 | 268 | 228 |
+
+Results:
+
+| Method | val/text/test_score | success_rate | webshop_task_score |
+|---|---:|---:|---:|
+| DeepSeek target-think SFT-only | 0.0000 | 0.0000 | 0.0506 |
+| DeepSeek target-think SFT + GiGPO | 0.1262 | 0.0156 | 0.0537 |
+
+Decision:
+
+- Do not scale target-think to 2k/full in this project.
+- Do not run the think-no-loss variant unless it becomes a separate loss-mask
+  ablation project.
+- Keep the main project conclusion centered on empty-think/action-only SFT as
+  the effective GiGPO warm-start.
+
+Interpretation:
+
+Target-conditioned rationales were not useful under the current constraints.
+The long multi-turn context forced aggressive filtering, leaving only 259
+training rows. For Qwen2.5-1.5B, adding teacher-generated natural-language
+reasoning appears less useful than directly supervising short, parser-aligned
+WebShop actions.
