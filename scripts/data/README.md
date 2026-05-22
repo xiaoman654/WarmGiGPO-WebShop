@@ -82,6 +82,29 @@ This is intentionally conservative. DeepSeek-generated reasoning can be added
 later for the current turn, while historical turns should still drop `<think>`
 unless inference also keeps historical thinking in context.
 
+Export 500 train + 500 validation requests for generated current-step
+reasoning:
+
+```bash
+bash scripts/data/export_webshop_deepseek_think_requests_500.sh
+```
+
+After filling:
+
+```text
+data/processed/deepseek_think_requests/webshop_multiturn_500_responses.jsonl
+```
+
+with generated reasoning keyed by `sample_id`, build the DeepSeek-think SFT
+data:
+
+```bash
+bash scripts/data/build_webshop_sft_deepseek_think_500.sh
+```
+
+See `reports/plans/deepseek_think_sft_experiment.md` for the full workflow and
+quality checks.
+
 Outputs:
 
 ```text

@@ -142,3 +142,25 @@ bash scripts/rl/run_qwen15b_sft_multiturn500_gigpo_128_64.sh \
 
 Compare against the existing single-turn SFT-500 results before scaling to 2k
 or adding generated reasoning inside `<think>`.
+
+## DeepSeek-think SFT-500
+
+After generating and merging current-step reasoning data as described in
+`reports/plans/deepseek_think_sft_experiment.md`, train the 500-sample
+DeepSeek-think SFT variant:
+
+```bash
+mkdir -p logs/train logs/eval logs/rl
+
+bash scripts/train/run_qwen15b_lora_sft_verl_deepseek_think_500.sh \
+  2>&1 | tee logs/train/qwen15b_lora_sft_verl_deepseek_think_500_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/train/merge_sft_deepseek_think_adapter.sh \
+  2>&1 | tee logs/train/merge_sft_deepseek_think_adapter_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/eval/run_qwen15b_sft_deepseekthink500_eval64.sh \
+  2>&1 | tee logs/eval/qwen15b_sft_deepseekthink500_eval64_$(date +%Y%m%d_%H%M%S).log
+
+bash scripts/rl/run_qwen15b_sft_deepseekthink500_gigpo_128_64.sh \
+  2>&1 | tee logs/rl/qwen15b_sft_deepseekthink500_gigpo_128_64_$(date +%Y%m%d_%H%M%S).log
+```
