@@ -92,7 +92,7 @@ To call the DeepSeek API directly:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=384, temperature=0.05.
+# Defaults: deepseek-v4-pro, JSON mode, no hidden API thinking fields, max_tokens=512, temperature=0.05.
 # Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Generate a small quality-check slice first.
@@ -113,10 +113,12 @@ Empty responses, truncated JSON, and rows without a parseable `chosen_action`
 are treated as invalid and retried. Samples that still fail after all retries
 are recorded in
 `data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl`,
-and the batch continues. The wrapper omits DeepSeek's hidden `thinking` field by
-default because this experiment needs visible reasoning in the returned JSON;
-hidden thinking can consume the output budget and cause empty or truncated final
-content.
+and the batch continues. Invalid intermediate responses are recorded in
+`data/processed/deepseek_think_requests/webshop_multiturn_500_invalid.jsonl`
+with raw content and finish reason for debugging. The wrapper omits DeepSeek's
+hidden `thinking` field by default because this experiment needs visible
+reasoning in the returned JSON; hidden thinking can consume the output budget
+and cause empty or truncated final content.
 
 ### 3. Inspect before training
 

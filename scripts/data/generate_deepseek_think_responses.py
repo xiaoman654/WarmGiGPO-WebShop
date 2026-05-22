@@ -75,6 +75,7 @@ def extract_action(text: str) -> str:
 def normalize_response(sample_id: str, message: dict[str, Any], model: str) -> dict[str, Any]:
     content = str(message.get("content") or "")
     reasoning_content = str(message.get("reasoning_content") or "")
+    finish_reason = str(message.get("_finish_reason") or "")
     parsed = parse_json_text(content) or {}
     think = parsed.get("think") or parsed.get("reasoning") or parsed.get("generated_think") or ""
     chosen_action = parsed.get("chosen_action") or parsed.get("action") or parsed.get("final_action") or ""
@@ -92,6 +93,7 @@ def normalize_response(sample_id: str, message: dict[str, Any], model: str) -> d
         "model": model,
         "raw_content": content,
         "raw_reasoning_content": reasoning_content,
+        "finish_reason": finish_reason,
     }
 
 
@@ -116,10 +118,50 @@ def call_chat_completion(
     max_tokens: int,
     thinking: str,
     reasoning_effort: str,
+    response_format: str,
     timeout: int,
 ) -> dict[str, Any]:
     url = api_base.rstrip("/") + "/chat/completions"
-    payload = {
+    payload = build_payload(
+        model=model,
+        prompt=prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        thinking=thinking,
+        reasoning_effort=reasoning_effort,
+        response_format=response_format,
+    )
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        body = response.read().decode("utf-8")
+    parsed = json.loads(body)
+    choice = parsed["choices"][0]
+    message = choice.get("message", {})
+    if not isinstance(message, dict):
+        message = {"content": str(message)}
+    message["_finish_reason"] = choice.get("finish_reason", "")
+    return message
+
+
+def build_payload(
+    model: str,
+    prompt: str,
+    temperature: float,
+    max_tokens: int,
+    thinking: str,
+    reasoning_effort: str,
+    response_format: str,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {
@@ -138,21 +180,9 @@ def call_chat_completion(
         payload["thinking"] = {"type": thinking}
     if reasoning_effort != "none":
         payload["reasoning_effort"] = reasoning_effort
-    data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        body = response.read().decode("utf-8")
-    parsed = json.loads(body)
-    message = parsed["choices"][0]["message"]
-    return message if isinstance(message, dict) else {"content": str(message)}
+    if response_format != "none":
+        payload["response_format"] = {"type": response_format}
+    return payload
 
 
 def main() -> None:
@@ -165,7 +195,7 @@ def main() -> None:
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=0.05)
-    parser.add_argument("--max-tokens", type=int, default=384)
+    parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument(
         "--thinking",
         choices=("enabled", "disabled", "none"),
@@ -178,6 +208,12 @@ def main() -> None:
         default=os.environ.get("DEEPSEEK_REASONING_EFFORT", "none"),
         help="DeepSeek reasoning effort. Use 'none' to omit the field from the request.",
     )
+    parser.add_argument(
+        "--response-format",
+        choices=("json_object", "none"),
+        default=os.environ.get("DEEPSEEK_RESPONSE_FORMAT", "json_object"),
+        help="Use DeepSeek/OpenAI-compatible JSON mode by default. Set to 'none' if unsupported.",
+    )
     parser.add_argument("--min-think-chars", type=int, default=20)
     parser.add_argument(
         "--allow-empty-chosen-action",
@@ -188,6 +224,7 @@ def main() -> None:
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.2, help="Seconds to sleep after each successful request.")
     parser.add_argument("--failure-output", default=None, help="Optional JSONL path for samples that failed all retries.")
+    parser.add_argument("--invalid-output", default=None, help="Optional JSONL path for invalid API responses before retry.")
     parser.add_argument("--fail-fast", action="store_true", help="Abort when one sample fails all retries.")
     parser.add_argument("--overwrite", action="store_true", help="Ignore existing output and regenerate rows.")
     args = parser.parse_args()
@@ -208,8 +245,11 @@ def main() -> None:
     if args.overwrite and output.exists():
         output.unlink()
     failure_output = Path(args.failure_output) if args.failure_output else output.with_name(output.stem + "_failures.jsonl")
+    invalid_output = Path(args.invalid_output) if args.invalid_output else output.with_name(output.stem + "_invalid.jsonl")
     if args.overwrite and failure_output.exists():
         failure_output.unlink()
+    if args.overwrite and invalid_output.exists():
+        invalid_output.unlink()
 
     total = len(requests)
     generated = 0
@@ -237,15 +277,33 @@ def main() -> None:
                     max_tokens=args.max_tokens,
                     thinking=args.thinking,
                     reasoning_effort=args.reasoning_effort,
+                    response_format=args.response_format,
                     timeout=args.timeout,
                 )
                 out_row = normalize_response(sample_id, message, args.model)
                 if not is_valid_response(out_row, args.min_think_chars, require_chosen_action):
+                    append_jsonl(
+                        invalid_output,
+                        {
+                            "sample_id": sample_id,
+                            "attempt": attempt,
+                            "error": "invalid_response",
+                            "think_chars": len(out_row.get("think") or ""),
+                            "chosen_action": out_row.get("chosen_action", ""),
+                            "finish_reason": out_row.get("finish_reason", ""),
+                            "raw_content_len": len(out_row.get("raw_content") or ""),
+                            "raw_content": out_row.get("raw_content", ""),
+                            "raw_reasoning_content_len": len(out_row.get("raw_reasoning_content") or ""),
+                        },
+                    )
                     raise ValueError(
                         "invalid response: "
                         f"think_chars={len(out_row.get('think') or '')}, "
                         f"chosen_action={out_row.get('chosen_action')!r}, "
-                        f"raw_content_prefix={str(out_row.get('raw_content') or '')[:80]!r}"
+                        f"finish_reason={out_row.get('finish_reason')!r}, "
+                        f"raw_content_len={len(out_row.get('raw_content') or '')}, "
+                        f"raw_content_prefix={str(out_row.get('raw_content') or '')[:120]!r}, "
+                        f"raw_content_suffix={str(out_row.get('raw_content') or '')[-120:]!r}"
                     )
                 append_jsonl(output, out_row)
                 done.add(sample_id)
@@ -287,12 +345,14 @@ def main() -> None:
                 "model": args.model,
                 "thinking": args.thinking,
                 "reasoning_effort": args.reasoning_effort,
+                "response_format": args.response_format,
                 "total_requested": total,
                 "generated": generated,
                 "skipped_existing": skipped,
                 "failed": failed,
                 "output_rows_seen": len(done),
                 "failure_output": str(failure_output),
+                "invalid_output": str(invalid_output),
             },
             ensure_ascii=False,
             indent=2,

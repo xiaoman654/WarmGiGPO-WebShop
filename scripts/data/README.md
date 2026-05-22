@@ -103,7 +103,7 @@ and run:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=384, temperature=0.05.
+# Defaults: deepseek-v4-pro, JSON mode, no hidden API thinking fields, max_tokens=512, temperature=0.05.
 # Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Optional smoke test first.
@@ -118,10 +118,12 @@ skipped unless `--overwrite` is passed to the underlying Python script. Empty
 or truncated responses are treated as invalid and will be regenerated on the
 next run. Samples that still fail after all retries are recorded in
 `data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl`,
-and the batch continues. For this visible-reasoning data generation task, the
-wrapper omits DeepSeek's hidden `thinking` field by default; enabling hidden
-thinking can consume output budget and make the final JSON more likely to be
-empty or truncated.
+and the batch continues. Invalid intermediate responses are recorded in
+`data/processed/deepseek_think_requests/webshop_multiturn_500_invalid.jsonl`
+with raw content and finish reason for debugging. For this visible-reasoning
+data generation task, the wrapper omits DeepSeek's hidden `thinking` field by
+default; enabling hidden thinking can consume output budget and make the final
+JSON more likely to be empty or truncated.
 
 Then build the SFT data:
 
