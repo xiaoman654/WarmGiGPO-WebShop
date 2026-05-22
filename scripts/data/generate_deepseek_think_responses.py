@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -238,6 +240,7 @@ def main() -> None:
     )
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("DEEPSEEK_WORKERS", "1")))
     parser.add_argument("--sleep", type=float, default=0.2, help="Seconds to sleep after each successful request.")
     parser.add_argument("--failure-output", default=None, help="Optional JSONL path for samples that failed all retries.")
     parser.add_argument("--invalid-output", default=None, help="Optional JSONL path for invalid API responses before retry.")
@@ -266,9 +269,8 @@ def main() -> None:
         invalid_output.unlink()
 
     total = len(requests)
-    generated = 0
     skipped = 0
-    failed = 0
+    pending = []
     for idx, row in enumerate(requests, 1):
         sample_id = str(row.get("sample_id", "")).strip()
         if not sample_id:
@@ -277,7 +279,23 @@ def main() -> None:
         if sample_id in done:
             skipped += 1
             continue
+        pending.append((idx, row))
 
+    write_lock = threading.Lock()
+    print_lock = threading.Lock()
+    done_lock = threading.Lock()
+
+    def safe_append(path: Path, row: dict[str, Any]) -> None:
+        with write_lock:
+            append_jsonl(path, row)
+
+    def safe_print(message: str, *, error: bool = False) -> None:
+        with print_lock:
+            print(message, file=sys.stderr if error else sys.stdout, flush=True)
+
+    def process_row(item: tuple[int, dict[str, Any]]) -> str:
+        idx, row = item
+        sample_id = str(row.get("sample_id", "")).strip()
         prompt = str(row.get("prompt", ""))
         last_error: Exception | None = None
         for attempt in range(1, args.retries + 1):
@@ -296,7 +314,7 @@ def main() -> None:
                 )
                 out_row = normalize_response(sample_id, message, args.model)
                 if not is_valid_response(out_row, args.min_think_chars, require_chosen_action):
-                    append_jsonl(
+                    safe_append(
                         invalid_output,
                         {
                             "sample_id": sample_id,
@@ -319,39 +337,54 @@ def main() -> None:
                         f"raw_content_prefix={str(out_row.get('raw_content') or '')[:120]!r}, "
                         f"raw_content_suffix={str(out_row.get('raw_content') or '')[-120:]!r}"
                     )
-                append_jsonl(output, out_row)
-                done.add(sample_id)
-                generated += 1
-                print(f"[{idx}/{total}] generated {sample_id}", flush=True)
+                safe_append(output, out_row)
+                with done_lock:
+                    done.add(sample_id)
+                safe_print(f"[{idx}/{total}] generated {sample_id}")
                 time.sleep(args.sleep)
-                break
+                return "generated"
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_error = exc
-                print(
+                safe_print(
                     f"[warn] {sample_id} attempt {attempt}/{args.retries} failed: {exc}",
-                    file=sys.stderr,
-                    flush=True,
+                    error=True,
                 )
                 if attempt < args.retries:
                     wait_s = min(30.0, 2.0**attempt)
-                    print(f"[warn] sleep {wait_s:.1f}s before retry", file=sys.stderr, flush=True)
+                    safe_print(f"[warn] {sample_id} sleep {wait_s:.1f}s before retry", error=True)
                     time.sleep(wait_s)
-        else:
-            failed += 1
-            failure_row = {
-                "sample_id": sample_id,
-                "error": str(last_error),
-                "model": args.model,
-                "request_index": idx,
-            }
-            append_jsonl(failure_output, failure_row)
-            print(
-                f"[error] failed {sample_id} after {args.retries} attempts; recorded in {failure_output}",
-                file=sys.stderr,
-                flush=True,
-            )
-            if args.fail_fast:
-                raise RuntimeError(f"failed to generate sample_id={sample_id}: {last_error}") from last_error
+
+        failure_row = {
+            "sample_id": sample_id,
+            "error": str(last_error),
+            "model": args.model,
+            "request_index": idx,
+        }
+        safe_append(failure_output, failure_row)
+        safe_print(
+            f"[error] failed {sample_id} after {args.retries} attempts; recorded in {failure_output}",
+            error=True,
+        )
+        if args.fail_fast:
+            raise RuntimeError(f"failed to generate sample_id={sample_id}: {last_error}") from last_error
+        return "failed"
+
+    generated = 0
+    failed = 0
+    workers = max(1, args.workers)
+    if workers == 1:
+        for item in pending:
+            result = process_row(item)
+            generated += result == "generated"
+            failed += result == "failed"
+    else:
+        safe_print(f"running with workers={workers}, pending={len(pending)}, skipped_existing={skipped}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(process_row, item) for item in pending]
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                generated += result == "generated"
+                failed += result == "failed"
 
     print(
         json.dumps(
@@ -363,6 +396,8 @@ def main() -> None:
                 "reasoning_effort": args.reasoning_effort,
                 "response_format": args.response_format,
                 "total_requested": total,
+                "pending": len(pending),
+                "workers": workers,
                 "generated": generated,
                 "skipped_existing": skipped,
                 "failed": failed,

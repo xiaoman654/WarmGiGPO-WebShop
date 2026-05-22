@@ -99,7 +99,7 @@ export DEEPSEEK_API_KEY=...
 MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh
 
 # Resume and finish all requests after inspection.
-bash scripts/data/generate_webshop_deepseek_think_500.sh
+DEEPSEEK_WORKERS=4 DEEPSEEK_RETRIES=2 bash scripts/data/generate_webshop_deepseek_think_500.sh
 ```
 
 The API script writes to:
@@ -119,6 +119,8 @@ with raw content and finish reason for debugging. The wrapper omits DeepSeek's
 hidden `thinking` field by default because this experiment needs visible
 reasoning in the returned JSON; hidden thinking can consume the output budget
 and cause empty or truncated final content.
+Use `DEEPSEEK_WORKERS` for parallel API calls. Start with 4 workers to avoid
+rate-limit surprises, then increase if the API account allows it.
 
 ### 3. Inspect before training
 

@@ -12,6 +12,7 @@ DEEPSEEK_RESPONSE_FORMAT=${DEEPSEEK_RESPONSE_FORMAT:-json_object}
 DEEPSEEK_MAX_TOKENS=${DEEPSEEK_MAX_TOKENS:-512}
 DEEPSEEK_TEMPERATURE=${DEEPSEEK_TEMPERATURE:-0.05}
 DEEPSEEK_RETRIES=${DEEPSEEK_RETRIES:-5}
+DEEPSEEK_WORKERS=${DEEPSEEK_WORKERS:-1}
 FAILURE_FILE=${FAILURE_FILE:-data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl}
 INVALID_FILE=${INVALID_FILE:-data/processed/deepseek_think_requests/webshop_multiturn_500_invalid.jsonl}
 
@@ -31,6 +32,7 @@ args=(
   --max-tokens "$DEEPSEEK_MAX_TOKENS"
   --temperature "$DEEPSEEK_TEMPERATURE"
   --retries "$DEEPSEEK_RETRIES"
+  --workers "$DEEPSEEK_WORKERS"
   --failure-output "$FAILURE_FILE"
   --invalid-output "$INVALID_FILE"
 )
