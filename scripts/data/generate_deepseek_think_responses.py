@@ -327,13 +327,15 @@ def main() -> None:
                 break
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 last_error = exc
-                wait_s = min(30.0, 2.0**attempt)
                 print(
-                    f"[warn] {sample_id} attempt {attempt}/{args.retries} failed: {exc}; sleep {wait_s:.1f}s",
+                    f"[warn] {sample_id} attempt {attempt}/{args.retries} failed: {exc}",
                     file=sys.stderr,
                     flush=True,
                 )
-                time.sleep(wait_s)
+                if attempt < args.retries:
+                    wait_s = min(30.0, 2.0**attempt)
+                    print(f"[warn] sleep {wait_s:.1f}s before retry", file=sys.stderr, flush=True)
+                    time.sleep(wait_s)
         else:
             failed += 1
             failure_row = {
