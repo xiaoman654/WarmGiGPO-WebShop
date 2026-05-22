@@ -23,6 +23,7 @@ python scripts/train/sft_lora.py \
   --max-train-samples 500 \
   --max-valid-samples 500 \
   --max-seq-length 4096 \
+  --max-rendered-chars 30000 \
   --num-train-epochs 1 \
   --per-device-train-batch-size 1 \
   --per-device-eval-batch-size 1 \

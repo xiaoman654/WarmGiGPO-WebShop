@@ -129,9 +129,29 @@ class WebShopSFTDataset(Dataset):
         rows: list[dict[str, Any]],
         tokenizer: AutoTokenizer,
         max_seq_length: int,
+        max_rendered_chars: int = 0,
     ) -> None:
-        self.features = [encode_sample(row, tokenizer, max_seq_length) for row in rows]
-        self.features = [x for x in self.features if any(label != IGNORE_INDEX for label in x["labels"])]
+        self.features = []
+        self.skipped_overlong_rendered = 0
+        self.skipped_no_labels = 0
+
+        for row in rows:
+            if max_rendered_chars > 0:
+                messages = normalize_messages(row)
+                rendered = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+                if len(rendered) > max_rendered_chars:
+                    self.skipped_overlong_rendered += 1
+                    continue
+
+            feature = encode_sample(row, tokenizer, max_seq_length)
+            if not any(label != IGNORE_INDEX for label in feature["labels"]):
+                self.skipped_no_labels += 1
+                continue
+            self.features.append(feature)
 
     def __len__(self) -> int:
         return len(self.features)
@@ -160,6 +180,7 @@ def save_training_metadata(
         "num_train_rows": len(train_rows),
         "num_valid_rows": len(valid_rows),
         "max_seq_length": args.max_seq_length,
+        "max_rendered_chars": args.max_rendered_chars,
         "lora_r": args.lora_r,
         "lora_alpha": args.lora_alpha,
         "lora_dropout": args.lora_dropout,
@@ -210,6 +231,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--valid-file", default="data/processed/sft_step_level/valid.jsonl")
     parser.add_argument("--output-dir", default="outputs/sft/qwen25_1p5b_webshop_lora_smoke")
     parser.add_argument("--max-seq-length", type=int, default=2048)
+    parser.add_argument(
+        "--max-rendered-chars",
+        type=int,
+        default=0,
+        help=(
+            "Skip samples whose chat-template-rendered text exceeds this many characters "
+            "before tokenization. Use 0 to disable filtering."
+        ),
+    )
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-valid-samples", type=int, default=200)
     parser.add_argument("--num-train-epochs", type=float, default=1.0)
@@ -278,8 +308,18 @@ def main() -> None:
     train_rows = load_jsonl(Path(args.train_file), args.max_train_samples, args.seed)
     valid_rows = load_jsonl(Path(args.valid_file), args.max_valid_samples, args.seed)
 
-    train_dataset = WebShopSFTDataset(train_rows, tokenizer, args.max_seq_length)
-    valid_dataset = WebShopSFTDataset(valid_rows, tokenizer, args.max_seq_length)
+    train_dataset = WebShopSFTDataset(
+        train_rows,
+        tokenizer,
+        args.max_seq_length,
+        args.max_rendered_chars,
+    )
+    valid_dataset = WebShopSFTDataset(
+        valid_rows,
+        tokenizer,
+        args.max_seq_length,
+        args.max_rendered_chars,
+    )
     if len(train_dataset) == 0:
         raise ValueError("No train samples left after tokenization.")
     if len(valid_dataset) == 0:
@@ -293,7 +333,17 @@ def main() -> None:
         len(train_dataset) / (args.per_device_train_batch_size * args.gradient_accumulation_steps)
     )
     print(f"train_rows: {len(train_rows)} tokenized: {len(train_dataset)}")
+    print(
+        "train_skipped: "
+        f"overlong_rendered={train_dataset.skipped_overlong_rendered} "
+        f"no_labels={train_dataset.skipped_no_labels}"
+    )
     print(f"valid_rows: {len(valid_rows)} tokenized: {len(valid_dataset)}")
+    print(
+        "valid_skipped: "
+        f"overlong_rendered={valid_dataset.skipped_overlong_rendered} "
+        f"no_labels={valid_dataset.skipped_no_labels}"
+    )
     print(f"approx_steps_per_epoch: {steps_per_epoch}")
 
     training_args = TrainingArguments(
