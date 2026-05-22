@@ -5,6 +5,9 @@ PROJECT_DIR=${PROJECT_DIR:-/root/autodl-fs/WarmGiGPO-WebShop}
 REQUEST_FILE=${REQUEST_FILE:-data/processed/deepseek_think_requests/webshop_multiturn_500_requests.jsonl}
 OUTPUT_FILE=${OUTPUT_FILE:-data/processed/deepseek_think_requests/webshop_multiturn_500_responses.jsonl}
 MAX_SAMPLES=${MAX_SAMPLES:-}
+DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-v4-pro}
+DEEPSEEK_THINKING=${DEEPSEEK_THINKING:-enabled}
+DEEPSEEK_REASONING_EFFORT=${DEEPSEEK_REASONING_EFFORT:-high}
 
 cd "$PROJECT_DIR"
 
@@ -15,6 +18,9 @@ fi
 args=(
   --input "$REQUEST_FILE"
   --output "$OUTPUT_FILE"
+  --model "$DEEPSEEK_MODEL"
+  --thinking "$DEEPSEEK_THINKING"
+  --reasoning-effort "$DEEPSEEK_REASONING_EFFORT"
 )
 
 if [ -n "$MAX_SAMPLES" ]; then

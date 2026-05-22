@@ -92,6 +92,8 @@ To call the DeepSeek API directly:
 
 ```bash
 export DEEPSEEK_API_KEY=...
+# Defaults: deepseek-v4-pro, thinking enabled, reasoning_effort high.
+# Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Generate a small quality-check slice first.
 MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh

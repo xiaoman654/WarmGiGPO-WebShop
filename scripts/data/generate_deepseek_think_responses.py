@@ -99,6 +99,8 @@ def call_chat_completion(
     prompt: str,
     temperature: float,
     max_tokens: int,
+    thinking: str,
+    reasoning_effort: str,
     timeout: int,
 ) -> str:
     url = api_base.rstrip("/") + "/chat/completions"
@@ -117,6 +119,10 @@ def call_chat_completion(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if thinking != "none":
+        payload["thinking"] = {"type": thinking}
+    if reasoning_effort != "none":
+        payload["reasoning_effort"] = reasoning_effort
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         url,
@@ -139,11 +145,23 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="Generated response JSONL.")
     parser.add_argument("--api-base", default=os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com"))
     parser.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
-    parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
+    parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"))
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--max-tokens", type=int, default=256)
+    parser.add_argument(
+        "--thinking",
+        choices=("enabled", "disabled", "none"),
+        default=os.environ.get("DEEPSEEK_THINKING", "enabled"),
+        help="DeepSeek thinking mode. Use 'none' to omit the thinking field from the request.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=("low", "medium", "high", "none"),
+        default=os.environ.get("DEEPSEEK_REASONING_EFFORT", "high"),
+        help="DeepSeek reasoning effort. Use 'none' to omit the field from the request.",
+    )
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.2, help="Seconds to sleep after each successful request.")
@@ -188,6 +206,8 @@ def main() -> None:
                     prompt=prompt,
                     temperature=args.temperature,
                     max_tokens=args.max_tokens,
+                    thinking=args.thinking,
+                    reasoning_effort=args.reasoning_effort,
                     timeout=args.timeout,
                 )
                 out_row = normalize_response(sample_id, content, args.model)
@@ -215,6 +235,8 @@ def main() -> None:
                 "input": args.input,
                 "output": args.output,
                 "model": args.model,
+                "thinking": args.thinking,
+                "reasoning_effort": args.reasoning_effort,
                 "total_requested": total,
                 "generated": generated,
                 "skipped_existing": skipped,
