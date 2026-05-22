@@ -140,6 +140,34 @@ This merge requires both generated reasoning and action agreement by default:
 DeepSeek's `chosen_action` must match the human-demonstration `target_action`.
 Rows with contradictory think/action pairs are dropped.
 
+The free-decision version is useful as a diagnostic, but it can lose many rows
+when DeepSeek's chosen action differs from the human demonstration. For the main
+DeepSeek-think experiment, generate rationales conditioned on the
+human-demonstration target action:
+
+```bash
+bash scripts/data/export_webshop_deepseek_target_think_requests_500.sh
+DEEPSEEK_WORKERS=16 DEEPSEEK_RETRIES=2 bash scripts/data/generate_webshop_deepseek_target_think_500.sh
+bash scripts/data/build_webshop_sft_deepseek_target_think_500.sh
+```
+
+This writes:
+
+```text
+data/processed/sft_step_level_verl_deepseek_target_think_500/train.jsonl
+data/processed/sft_step_level_verl_deepseek_target_think_500/valid.jsonl
+data/processed/sft_step_level_verl_deepseek_target_think_500/stats.json
+```
+
+The target-conditioned prompt includes the supervised `target_action` only for
+the external teacher rationale generation step. The final SFT input still does
+not contain the target action; the SFT label remains:
+
+```text
+<think>{generated rationale}</think>
+<action>{target_action}</action>
+```
+
 See `reports/plans/deepseek_think_sft_experiment.md` for the full workflow and
 quality checks.
 

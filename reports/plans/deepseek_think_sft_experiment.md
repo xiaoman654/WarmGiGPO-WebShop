@@ -204,3 +204,32 @@ Scale to 2k only if the 500-sample DeepSeek-think version improves either:
 
 - SFT-only behavior without causing long/unstable output, or
 - SFT+GiGPO final success/task score over empty-think SFT-500.
+
+## Target-Conditioned Follow-up
+
+The free-decision DeepSeek-think data had low action agreement with the human
+demonstration target. To avoid contradictory supervision, use the
+target-conditioned variant as the main DeepSeek-think experiment:
+
+```bash
+bash scripts/data/export_webshop_deepseek_target_think_requests_500.sh
+
+DEEPSEEK_WORKERS=16 DEEPSEEK_RETRIES=2 \
+  bash scripts/data/generate_webshop_deepseek_target_think_500.sh
+
+bash scripts/data/build_webshop_sft_deepseek_target_think_500.sh
+```
+
+This prompt shows DeepSeek the human-demonstration `target_action` and asks for
+a short grounded rationale for that exact action. The final SFT action remains
+the original `target_action`, and the merge still requires DeepSeek's returned
+`chosen_action` to match it.
+
+Training and downstream evaluation:
+
+```bash
+bash scripts/train/run_qwen15b_lora_sft_verl_deepseek_target_think_500.sh
+bash scripts/train/merge_sft_deepseek_target_think_adapter.sh
+bash scripts/eval/run_qwen15b_sft_deepseektargetthink500_eval64.sh
+bash scripts/rl/run_qwen15b_sft_deepseektargetthink500_gigpo_128_64.sh
+```

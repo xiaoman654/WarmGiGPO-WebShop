@@ -37,6 +37,11 @@ def format_actions(actions: Any) -> str:
 def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_action: bool) -> str:
     history = row.get("history") or []
     available_actions = row.get("available_actions") or []
+    target_rule = (
+        "- Do NOT use any future information, hidden labels, ground truth, or target actions.\n"
+        if not include_target_action
+        else "- Do NOT use any future information, hidden labels, or ground truth beyond the provided target action.\n"
+    )
     base = (
         "You are generating a short rationale for the NEXT WebShop action at the current step.\n\n"
         "Your goal is to choose the single best next action strictly from the admissible actions, "
@@ -45,7 +50,7 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
         "- Use ONLY the Task, Previous actions, Current observation, and Admissible actions.\n"
         "- Focus on the CURRENT step only. Do not write a long plan or discuss future steps beyond what is needed for the next action.\n"
         "- Never invent prices, sizes, colors, ratings, or product names that are not explicitly shown in the Current observation.\n"
-        "- Do NOT use any future information, hidden labels, ground truth, or target actions.\n"
+        f"{target_rule}"
         "- Compare the task requirements against the current observation. If a product clearly does NOT match "
         "(wrong category, wrong color, wrong size, price over budget, or missing a required attribute), say so briefly and prefer a better action.\n"
         "- If key information is still missing, prefer an information-gathering action (such as search, click, select, description, features, or reviews) over buying.\n"
@@ -65,9 +70,12 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
     )
     if include_target_action:
         base += (
-            "Demonstrated next action:\n"
+            "Target next action to rationalize:\n"
             f"{row.get('target_action', '')}\n\n"
-            "Explain why this action is reasonable. Do not mention labels, ground truth, or demonstrations.\n"
+            "Write a short rationale for why this exact target action is a reasonable next step. "
+            "Do not mention labels, ground truth, demonstrations, or that the action was provided.\n"
+            "Output JSON:\n"
+            '{"think": "<short grounded rationale for the target action>", "chosen_action": "<copy the target next action exactly>"}\n'
         )
     else:
         base += (
