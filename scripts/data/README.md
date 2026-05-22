@@ -136,6 +136,10 @@ Then build the SFT data:
 bash scripts/data/build_webshop_sft_deepseek_think_500.sh
 ```
 
+This merge requires both generated reasoning and action agreement by default:
+DeepSeek's `chosen_action` must match the human-demonstration `target_action`.
+Rows with contradictory think/action pairs are dropped.
+
 See `reports/plans/deepseek_think_sft_experiment.md` for the full workflow and
 quality checks.
 

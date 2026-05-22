@@ -160,9 +160,11 @@ data/processed/sft_step_level_verl_deepseek_think_500/stats.json
 ```
 
 The merge uses `--require-all`, so only rows with generated think are kept.
-It still uses the human-demonstration `target_action` as the final SFT action.
-Generated `chosen_action` is recorded only as a data-quality signal unless
-`--require-action-match` is enabled manually.
+It also uses `--require-action-match`, so rows are kept only when DeepSeek's
+visible `chosen_action` matches the human-demonstration `target_action`. This
+prevents contradictory supervision such as a `<think>` that says "buy now"
+paired with an `<action>` that selects a color. The final SFT `<action>` still
+comes from the human-demonstration `target_action`.
 
 ### 5. Train and evaluate
 

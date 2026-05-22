@@ -18,7 +18,8 @@ python scripts/data/build_webshop_sft_with_generated_think.py \
   --think-file "$THINK_FILE" \
   --out-dir data/processed/sft_step_level_verl_deepseek_think_500 \
   --max-think-chars 800 \
-  --require-all
+  --require-all \
+  --require-action-match
 
 python scripts/data/validate_webshop_sft_dataset.py \
   --train data/processed/sft_step_level_verl_deepseek_think_500/train.jsonl \

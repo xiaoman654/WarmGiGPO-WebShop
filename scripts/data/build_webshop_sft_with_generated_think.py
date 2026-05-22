@@ -139,9 +139,10 @@ def merge_rows(
             if require_all:
                 continue
             think = ""
-        if require_action_match and chosen_action and chosen_action.lower() != target_action.lower():
-            mismatched.append(sample_id)
-            continue
+        if require_action_match:
+            if not chosen_action or chosen_action.lower() != target_action.lower():
+                mismatched.append(sample_id)
+                continue
 
         new_row = dict(row)
         new_row["generated_think"] = think
@@ -180,7 +181,7 @@ def main() -> None:
     parser.add_argument(
         "--require-action-match",
         action="store_true",
-        help="Drop rows whose generated chosen_action disagrees with target_action. Rows without chosen_action are kept.",
+        help="Drop rows whose generated chosen_action is missing or disagrees with target_action.",
     )
     args = parser.parse_args()
 
