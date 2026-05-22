@@ -92,8 +92,9 @@ To call the DeepSeek API directly:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, JSON mode, no hidden API thinking fields, max_tokens=512, temperature=0.05.
-# Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
+# Defaults: deepseek-v4-pro, JSON mode, user_id=webshop-sft-think,
+# no hidden API thinking fields, max_tokens=512, temperature=0.05.
+# Override with DEEPSEEK_MODEL / DEEPSEEK_USER_ID / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Generate a small quality-check slice first.
 MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh
@@ -119,8 +120,10 @@ with raw content and finish reason for debugging. The wrapper omits DeepSeek's
 hidden `thinking` field by default because this experiment needs visible
 reasoning in the returned JSON; hidden thinking can consume the output budget
 and cause empty or truncated final content.
-Use `DEEPSEEK_WORKERS` for parallel API calls. Start with 4 workers to avoid
-rate-limit surprises, then increase if the API account allows it.
+Use `DEEPSEEK_WORKERS` for parallel API calls. DeepSeek currently documents a
+high account-level concurrency limit for `deepseek-v4-pro`, but start with 8-16
+workers to avoid local network, logging, or cost surprises, then increase if the
+API account behaves well.
 
 ### 3. Inspect before training
 

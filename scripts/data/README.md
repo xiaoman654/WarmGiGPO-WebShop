@@ -103,8 +103,9 @@ and run:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, JSON mode, no hidden API thinking fields, max_tokens=512, temperature=0.05.
-# Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
+# Defaults: deepseek-v4-pro, JSON mode, user_id=webshop-sft-think,
+# no hidden API thinking fields, max_tokens=512, temperature=0.05.
+# Override with DEEPSEEK_MODEL / DEEPSEEK_USER_ID / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Optional smoke test first.
 MAX_SAMPLES=20 bash scripts/data/generate_webshop_deepseek_think_500.sh
@@ -124,8 +125,10 @@ with raw content and finish reason for debugging. For this visible-reasoning
 data generation task, the wrapper omits DeepSeek's hidden `thinking` field by
 default; enabling hidden thinking can consume output budget and make the final
 JSON more likely to be empty or truncated.
-Use `DEEPSEEK_WORKERS` for parallel API calls. Start with 4 workers to avoid
-rate-limit surprises, then increase if the API account allows it.
+Use `DEEPSEEK_WORKERS` for parallel API calls. DeepSeek currently documents a
+high account-level concurrency limit for `deepseek-v4-pro`, but start with 8-16
+workers to avoid local network, logging, or cost surprises, then increase if the
+API account behaves well.
 
 Then build the SFT data:
 

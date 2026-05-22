@@ -121,6 +121,7 @@ def call_chat_completion(
     thinking: str,
     reasoning_effort: str,
     response_format: str,
+    user_id: str,
     timeout: int,
 ) -> dict[str, Any]:
     url = api_base.rstrip("/") + "/chat/completions"
@@ -132,6 +133,7 @@ def call_chat_completion(
         thinking=thinking,
         reasoning_effort=reasoning_effort,
         response_format=response_format,
+        user_id=user_id,
     )
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
@@ -162,6 +164,7 @@ def build_payload(
     thinking: str,
     reasoning_effort: str,
     response_format: str,
+    user_id: str = "",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
@@ -184,6 +187,8 @@ def build_payload(
         payload["reasoning_effort"] = reasoning_effort
     if response_format != "none":
         payload["response_format"] = {"type": response_format}
+    if user_id:
+        payload["user_id"] = user_id
     return payload
 
 
@@ -201,6 +206,15 @@ def normalize_api_key(value: str | None, env_name: str) -> str:
     if any(ch.isspace() for ch in api_key):
         raise SystemExit(f"{env_name} contains whitespace. Re-export the key without spaces or newlines.")
     return api_key
+
+
+def normalize_user_id(value: str | None) -> str:
+    user_id = (value or "").strip()
+    if not user_id:
+        return ""
+    if not re.fullmatch(r"[a-zA-Z0-9\-_]{1,512}", user_id):
+        raise SystemExit("DEEPSEEK_USER_ID / --user-id must match [a-zA-Z0-9\\-_]+ and be at most 512 chars.")
+    return user_id
 
 
 def main() -> None:
@@ -232,6 +246,11 @@ def main() -> None:
         default=os.environ.get("DEEPSEEK_RESPONSE_FORMAT", "json_object"),
         help="Use DeepSeek/OpenAI-compatible JSON mode by default. Set to 'none' if unsupported.",
     )
+    parser.add_argument(
+        "--user-id",
+        default=os.environ.get("DEEPSEEK_USER_ID", ""),
+        help="Optional DeepSeek user_id for account-side isolation. Must match [a-zA-Z0-9\\-_]+.",
+    )
     parser.add_argument("--min-think-chars", type=int, default=20)
     parser.add_argument(
         "--allow-empty-chosen-action",
@@ -249,6 +268,7 @@ def main() -> None:
     args = parser.parse_args()
 
     api_key = normalize_api_key(os.environ.get(args.api_key_env), args.api_key_env)
+    user_id = normalize_user_id(args.user_id)
 
     requests = load_jsonl(Path(args.input))
     if args.start:
@@ -310,6 +330,7 @@ def main() -> None:
                     thinking=args.thinking,
                     reasoning_effort=args.reasoning_effort,
                     response_format=args.response_format,
+                    user_id=user_id,
                     timeout=args.timeout,
                 )
                 out_row = normalize_response(sample_id, message, args.model)
@@ -395,6 +416,7 @@ def main() -> None:
                 "thinking": args.thinking,
                 "reasoning_effort": args.reasoning_effort,
                 "response_format": args.response_format,
+                "user_id": user_id,
                 "total_requested": total,
                 "pending": len(pending),
                 "workers": workers,
