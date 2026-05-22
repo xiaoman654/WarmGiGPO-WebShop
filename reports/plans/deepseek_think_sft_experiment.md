@@ -92,7 +92,7 @@ To call the DeepSeek API directly:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=1024, temperature=0.1.
+# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=384, temperature=0.05.
 # Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Generate a small quality-check slice first.
@@ -119,7 +119,7 @@ or truncated final content.
 
 Before SFT, inspect 30-50 generated rows:
 
-- concise, preferably under 80 words
+- concise, preferably under 60 words
 - grounded in the current observation
 - no invented product attributes
 - no mention of "ground truth", "label", or "target_action"

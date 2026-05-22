@@ -164,8 +164,8 @@ def main() -> None:
     parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"))
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--start", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.1)
-    parser.add_argument("--max-tokens", type=int, default=1024)
+    parser.add_argument("--temperature", type=float, default=0.05)
+    parser.add_argument("--max-tokens", type=int, default=384)
     parser.add_argument(
         "--thinking",
         choices=("enabled", "disabled", "none"),

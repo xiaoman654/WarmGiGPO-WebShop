@@ -103,7 +103,7 @@ and run:
 
 ```bash
 export DEEPSEEK_API_KEY=...
-# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=1024, temperature=0.1.
+# Defaults: deepseek-v4-pro, no hidden API thinking fields, max_tokens=384, temperature=0.05.
 # Override with DEEPSEEK_MODEL / DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT if needed.
 
 # Optional smoke test first.

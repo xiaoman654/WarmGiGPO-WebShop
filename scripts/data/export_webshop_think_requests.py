@@ -38,18 +38,24 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
     history = row.get("history") or []
     available_actions = row.get("available_actions") or []
     base = (
-        "You are a WebShop shopping agent. You must decide the single best next action "
-        "based strictly on the information provided below.\n\n"
+        "You are generating a short rationale for the NEXT WebShop action at the current step.\n\n"
+        "Your goal is to choose the single best next action strictly from the admissible actions, "
+        "based only on the information provided below.\n\n"
         "Rules:\n"
-        "- Base your reasoning ONLY on the Task, Previous actions, Current observation, and Admissible actions.\n"
+        "- Use ONLY the Task, Previous actions, Current observation, and Admissible actions.\n"
+        "- Focus on the CURRENT step only. Do not write a long plan or discuss future steps beyond what is needed for the next action.\n"
         "- Never invent prices, sizes, colors, ratings, or product names that are not explicitly shown in the Current observation.\n"
+        "- Do NOT use any future information, hidden labels, ground truth, or target actions.\n"
         "- Compare the task requirements against the current observation. If a product clearly does NOT match "
-        "(wrong category, wrong color, wrong size, price over budget), say so and choose a better action.\n"
-        "- If the current observation already shows a product that satisfies all task requirements AND a 'buy now' action is available, "
-        "recommend buying it.\n"
-        "- If previous actions show you have already tried searching similar terms without success, consider a different search strategy.\n"
-        "- The Previous actions list records what has already been done. Do not suggest repeating the very last action.\n"
-        f"- Your reasoning must be no more than {max_words} words.\n\n"
+        "(wrong category, wrong color, wrong size, price over budget, or missing a required attribute), say so briefly and prefer a better action.\n"
+        "- If key information is still missing, prefer an information-gathering action (such as search, click, select, description, features, or reviews) over buying.\n"
+        "- Only choose 'buy now' if the Current observation explicitly confirms ALL task-critical requirements and a 'buy now' action is available.\n"
+        "- If previous actions show that similar searches already failed, try a better search strategy: shorten the query, use synonyms, or remove overly specific terms.\n"
+        "- Do not repeat an action that has already proven ineffective (for example, repeating the exact same failed search query or revisiting the same clearly mismatched product). "
+        "However, sequential browsing actions such as pagination may be reasonable if justified by the Current observation.\n"
+        "- Mention at most 1-2 concrete cues from the Current observation or Admissible actions.\n"
+        f"- Your reasoning must be concise, grounded, and no more than {max_words} words.\n"
+        "- Output JSON only. Do not output markdown fences or any extra text.\n\n"
         f"Task:\n{row.get('instruction', '')}\n\n"
         "Previous actions:\n"
         f"{json.dumps(history, ensure_ascii=False) if history else '(none)'}\n\n"
@@ -65,8 +71,8 @@ def make_generation_prompt(row: dict[str, Any], max_words: int, include_target_a
         )
     else:
         base += (
-            "Think step-by-step about which action to take and why. Then output JSON:\n"
-            '{"think": "<your reasoning>", "chosen_action": "<exact action text from admissible actions>"}\n'
+            "Output JSON:\n"
+            '{"think": "<short grounded rationale>", "chosen_action": "<exact action text copied from the admissible actions>"}\n'
         )
     return base
 
@@ -76,7 +82,7 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="Base SFT JSONL file.")
     parser.add_argument("--output", required=True, help="Reasoning request JSONL.")
     parser.add_argument("--max-samples", type=int, default=500)
-    parser.add_argument("--max-words", type=int, default=80)
+    parser.add_argument("--max-words", type=int, default=60)
     parser.add_argument(
         "--include-target-action",
         action="store_true",

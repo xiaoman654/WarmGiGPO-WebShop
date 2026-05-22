@@ -15,13 +15,13 @@ python scripts/data/export_webshop_think_requests.py \
   --input data/processed/sft_step_level_verl_multiturn/train.jsonl \
   --output data/processed/deepseek_think_requests/webshop_multiturn_train500_requests.jsonl \
   --max-samples 500 \
-  --max-words 80
+  --max-words 60
 
 python scripts/data/export_webshop_think_requests.py \
   --input data/processed/sft_step_level_verl_multiturn/valid.jsonl \
   --output data/processed/deepseek_think_requests/webshop_multiturn_valid500_requests.jsonl \
   --max-samples 500 \
-  --max-words 80
+  --max-words 60
 
 cat \
   data/processed/deepseek_think_requests/webshop_multiturn_train500_requests.jsonl \
