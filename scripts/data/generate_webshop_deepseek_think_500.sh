@@ -10,6 +10,8 @@ DEEPSEEK_THINKING=${DEEPSEEK_THINKING:-none}
 DEEPSEEK_REASONING_EFFORT=${DEEPSEEK_REASONING_EFFORT:-none}
 DEEPSEEK_MAX_TOKENS=${DEEPSEEK_MAX_TOKENS:-384}
 DEEPSEEK_TEMPERATURE=${DEEPSEEK_TEMPERATURE:-0.05}
+DEEPSEEK_RETRIES=${DEEPSEEK_RETRIES:-5}
+FAILURE_FILE=${FAILURE_FILE:-data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl}
 
 cd "$PROJECT_DIR"
 
@@ -25,6 +27,8 @@ args=(
   --reasoning-effort "$DEEPSEEK_REASONING_EFFORT"
   --max-tokens "$DEEPSEEK_MAX_TOKENS"
   --temperature "$DEEPSEEK_TEMPERATURE"
+  --retries "$DEEPSEEK_RETRIES"
+  --failure-output "$FAILURE_FILE"
 )
 
 if [ -n "$MAX_SAMPLES" ]; then

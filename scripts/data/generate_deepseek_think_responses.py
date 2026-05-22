@@ -187,6 +187,8 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.2, help="Seconds to sleep after each successful request.")
+    parser.add_argument("--failure-output", default=None, help="Optional JSONL path for samples that failed all retries.")
+    parser.add_argument("--fail-fast", action="store_true", help="Abort when one sample fails all retries.")
     parser.add_argument("--overwrite", action="store_true", help="Ignore existing output and regenerate rows.")
     args = parser.parse_args()
 
@@ -205,10 +207,14 @@ def main() -> None:
     done = set() if args.overwrite else load_done_sample_ids(output, args.min_think_chars, require_chosen_action)
     if args.overwrite and output.exists():
         output.unlink()
+    failure_output = Path(args.failure_output) if args.failure_output else output.with_name(output.stem + "_failures.jsonl")
+    if args.overwrite and failure_output.exists():
+        failure_output.unlink()
 
     total = len(requests)
     generated = 0
     skipped = 0
+    failed = 0
     for idx, row in enumerate(requests, 1):
         sample_id = str(row.get("sample_id", "")).strip()
         if not sample_id:
@@ -257,7 +263,21 @@ def main() -> None:
                 )
                 time.sleep(wait_s)
         else:
-            raise RuntimeError(f"failed to generate sample_id={sample_id}: {last_error}") from last_error
+            failed += 1
+            failure_row = {
+                "sample_id": sample_id,
+                "error": str(last_error),
+                "model": args.model,
+                "request_index": idx,
+            }
+            append_jsonl(failure_output, failure_row)
+            print(
+                f"[error] failed {sample_id} after {args.retries} attempts; recorded in {failure_output}",
+                file=sys.stderr,
+                flush=True,
+            )
+            if args.fail_fast:
+                raise RuntimeError(f"failed to generate sample_id={sample_id}: {last_error}") from last_error
 
     print(
         json.dumps(
@@ -270,7 +290,9 @@ def main() -> None:
                 "total_requested": total,
                 "generated": generated,
                 "skipped_existing": skipped,
+                "failed": failed,
                 "output_rows_seen": len(done),
+                "failure_output": str(failure_output),
             },
             ensure_ascii=False,
             indent=2,

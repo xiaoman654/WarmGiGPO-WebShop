@@ -116,10 +116,12 @@ bash scripts/data/generate_webshop_deepseek_think_500.sh
 The generator is resumable: existing `sample_id`s in the response JSONL are
 skipped unless `--overwrite` is passed to the underlying Python script. Empty
 or truncated responses are treated as invalid and will be regenerated on the
-next run. For this visible-reasoning data generation task, the wrapper omits
-DeepSeek's hidden `thinking` field by default; enabling hidden thinking can
-consume output budget and make the final JSON more likely to be empty or
-truncated.
+next run. Samples that still fail after all retries are recorded in
+`data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl`,
+and the batch continues. For this visible-reasoning data generation task, the
+wrapper omits DeepSeek's hidden `thinking` field by default; enabling hidden
+thinking can consume output budget and make the final JSON more likely to be
+empty or truncated.
 
 Then build the SFT data:
 

@@ -110,10 +110,13 @@ data/processed/deepseek_think_requests/webshop_multiturn_500_responses.jsonl
 
 It is resumable and skips existing `sample_id`s by default.
 Empty responses, truncated JSON, and rows without a parseable `chosen_action`
-are treated as invalid and retried. The wrapper omits DeepSeek's hidden
-`thinking` field by default because this experiment needs visible reasoning in
-the returned JSON; hidden thinking can consume the output budget and cause empty
-or truncated final content.
+are treated as invalid and retried. Samples that still fail after all retries
+are recorded in
+`data/processed/deepseek_think_requests/webshop_multiturn_500_failures.jsonl`,
+and the batch continues. The wrapper omits DeepSeek's hidden `thinking` field by
+default because this experiment needs visible reasoning in the returned JSON;
+hidden thinking can consume the output budget and cause empty or truncated final
+content.
 
 ### 3. Inspect before training
 
